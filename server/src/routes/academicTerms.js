@@ -38,8 +38,12 @@ router.post('/', async (req, res) => {
         const prevClassSem = await db.get('SELECT semester FROM class_semesters WHERE academic_term = ? AND class_id = ?', [prevTerm.code, cl.id]);
         if (prevClassSem) {
            targetSemester = prevClassSem.semester + 1;
-           if (targetSemester > 8) targetSemester = 8; // Cap at 8
         }
+      }
+
+      // Do not enroll batches that have graduated (semester > 8)
+      if (targetSemester > 8) {
+        continue;
       }
 
       await db.run(
@@ -126,18 +130,26 @@ router.post('/rollover', async (req, res) => {
     [from_term]
   );
 
+  let advancedCount = 0;
   for (const cs of currentClassSemesters) {
     const nextSemester = increment_semester ? cs.semester + 1 : cs.semester;
+    
+    // Skip graduated classes
+    if (nextSemester > 8) {
+      continue;
+    }
+
     await db.run(`
       INSERT INTO class_semesters (academic_term, class_id, semester)
       VALUES (?, ?, ?)
       ON CONFLICT(academic_term, class_id) DO UPDATE SET semester = excluded.semester
     `, [to_term, cs.class_id, nextSemester]);
+    advancedCount++;
   }
 
   res.json({
     success: true,
-    message: `Advanced ${currentClassSemesters.length} batches to term ${to_term}`,
+    message: `Advanced ${advancedCount} batches to term ${to_term}`,
     to_term,
   });
 });
