@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../services/api';
+import { useAcademicTerm } from '../context/AcademicTermContext';
 import { Plus, Trash2, Edit2, X, Users, BookOpen, FlaskConical, Save, Check } from 'lucide-react';
 
 /* ─────────────────────────────────────────
@@ -737,6 +738,7 @@ function ClassDetailModal({ cls, onClose, onRefreshList }) {
    Main Classes Page
 ───────────────────────────────────────── */
 export default function ClassesPage() {
+  const { activeTerm } = useAcademicTerm();
   const [classes,     setClasses]     = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -751,21 +753,27 @@ export default function ClassesPage() {
 
   const load = (showSpinner = false) => {
     if (showSpinner) setLoading(true);
-    Promise.all([api.getClasses(), api.getDepartments()])
+    Promise.all([api.getClasses({ academic_term: activeTerm }), api.getDepartments()])
       .then(([c, d]) => { setClasses(c); setDepartments(d); })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => load(true), []);
+  useEffect(() => load(true), [activeTerm]);
 
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
     try {
       if (modal === 'add') {
-        await api.createClass(form);
+        const newCls = await api.createClass(form);
+        if (form.semester) {
+           await api.updateClassSemester(newCls.id, activeTerm, form.semester);
+        }
       } else {
         await api.updateClass(modal.id, form);
+        if (form.semester) {
+           await api.updateClassSemester(modal.id, activeTerm, form.semester);
+        }
       }
       setModal(null);
       load(false);

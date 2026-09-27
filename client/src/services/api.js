@@ -70,7 +70,10 @@ export const api = {
   deleteRoom: (id) => request('DELETE', `/rooms/${id}`),
 
   // Classes
-  getClasses: () => request('GET', '/classes'),
+  getClasses: (params) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request('GET', `/classes${qs}`);
+  },
   getClass: (id) => request('GET', `/classes/${id}`),
   createClass: (data) => request('POST', '/classes', data),
   updateClass: (id, data) => request('PUT', `/classes/${id}`, data),

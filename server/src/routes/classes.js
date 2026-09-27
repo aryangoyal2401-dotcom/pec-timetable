@@ -6,6 +6,17 @@ const { getDb } = require('../db/database');
 
 router.get('/', async (req, res) => {
   const db = await getDb();
+  if (req.query.academic_term) {
+    return res.json(await db.all(`
+      SELECT c.*, COALESCE(cs.semester, c.semester) as semester, d.name as department_name,
+        (SELECT COUNT(*) FROM student_groups WHERE class_id = c.id) as group_count,
+        (SELECT COUNT(*) FROM students WHERE class_id = c.id) as student_count_actual
+      FROM classes c
+      LEFT JOIN class_semesters cs ON cs.class_id = c.id AND cs.academic_term = ?
+      LEFT JOIN departments d ON c.department_id = d.id
+      ORDER BY COALESCE(cs.semester, c.semester), c.name
+    `, [req.query.academic_term]));
+  }
   res.json(await db.all(`
     SELECT c.*, d.name as department_name,
       (SELECT COUNT(*) FROM student_groups WHERE class_id = c.id) as group_count,
