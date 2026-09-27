@@ -54,7 +54,10 @@ router.post('/', async (req, res) => {
       [name, department_id || null, student_count ? parseInt(student_count) : 60, semester || null]
     );
     res.status(201).json({ id: r.lastID, name, department_id, student_count, semester });
-  } catch { res.status(409).json({ error: 'Class name already exists' }); }
+  } catch (err) {
+    console.error('Error adding class:', err);
+    res.status(409).json({ error: 'Class name already exists or database error: ' + err.message });
+  }
 });
 
 router.put('/:id', async (req, res) => {

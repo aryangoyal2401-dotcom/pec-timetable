@@ -55,7 +55,7 @@ function ProtectedLayout({ children }) {
       <div className={`app-layout${sidebarOpen ? '' : ' sidebar-closed'}`}>
         <aside className="sidebar" aria-label="Main navigation">
           <div className="sidebar-logo">
-            <div className="logo-icon">🏛️</div>
+            <img src="/pec-logo.png" alt="PEC Logo" style={{ height: 32, width: 'auto', objectFit: 'contain' }} />
             <div>
               <h1>PEC CSE</h1>
               <span>Timetable &amp; Scheduling</span>

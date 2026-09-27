@@ -778,7 +778,8 @@ export default function ClassesPage() {
       setModal(null);
       load(false);
     } catch (err) {
-      setError(err.error || 'Operation failed');
+      console.error(err);
+      setError(typeof err === 'object' && err.error ? err.error : (err.message || JSON.stringify(err) || 'Operation failed'));
     }
   };
 
