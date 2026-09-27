@@ -41,11 +41,6 @@ router.post('/', async (req, res) => {
         }
       }
 
-      // Do not enroll batches that have graduated (semester > 8)
-      if (targetSemester > 8) {
-        continue;
-      }
-
       await db.run(
         `INSERT INTO class_semesters (academic_term, class_id, semester) VALUES (?, ?, ?) ON CONFLICT (academic_term, class_id) DO NOTHING`,
         [code.trim(), cl.id, targetSemester]
@@ -133,11 +128,6 @@ router.post('/rollover', async (req, res) => {
   let advancedCount = 0;
   for (const cs of currentClassSemesters) {
     const nextSemester = increment_semester ? cs.semester + 1 : cs.semester;
-    
-    // Skip graduated classes
-    if (nextSemester > 8) {
-      continue;
-    }
 
     await db.run(`
       INSERT INTO class_semesters (academic_term, class_id, semester)

@@ -40,42 +40,97 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      <header className="w-full bg-white border-b px-6 py-4 shadow-sm flex items-center gap-3">
-        <Landmark className="h-8 w-8 text-indigo-600" />
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      background: 'var(--bg-primary)',
+      color: 'var(--text-primary)'
+    }}>
+      <header style={{
+        background: 'var(--bg-secondary)',
+        borderBottom: '1px solid var(--border)',
+        padding: '16px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12
+      }}>
+        <Landmark size={32} style={{ color: 'var(--indigo)' }} />
         <div>
-          <h1 className="font-bold text-xl text-slate-800">PEC CSE</h1>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Timetable &amp; Scheduling</p>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>PEC CSE</h1>
+          <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Timetable &amp; Scheduling</p>
         </div>
       </header>
 
-      <main className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
-          <div className="px-8 pt-10 pb-8 text-center border-b border-slate-100">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Sign in to your account</h2>
-            <p className="text-slate-500 text-sm">
+      <main style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: 420,
+          background: 'var(--bg-card)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-lg)',
+          border: '1px solid var(--border)',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            padding: '40px 32px 32px',
+            textAlign: 'center',
+            borderBottom: '1px solid var(--border)'
+          }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 700 }}>Sign in to your account</h2>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary)' }}>
               Use your official Punjab Engineering College email ID to access the system.
             </p>
           </div>
 
-          <div className="px-8 py-10 flex flex-col items-center">
+          <div style={{ padding: '40px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             {error && (
-              <div className="w-full mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3 text-red-700 text-sm items-start">
-                <ShieldAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div style={{
+                width: '100%',
+                marginBottom: 24,
+                padding: 16,
+                background: 'rgba(244,63,94,0.1)',
+                border: '1px solid rgba(244,63,94,0.2)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--rose)',
+                fontSize: 14,
+                display: 'flex',
+                gap: 12,
+                alignItems: 'flex-start'
+              }}>
+                <ShieldAlert size={20} style={{ flexShrink: 0, marginTop: 2 }} />
                 <span>{error}</span>
               </div>
             )}
 
-            <div ref={googleButtonRef} className="w-full max-w-[280px] min-h-[40px] flex justify-center"></div>
+            <div ref={googleButtonRef} style={{ width: '100%', maxWidth: 280, minHeight: 40, display: 'flex', justifyContent: 'center' }}></div>
 
-            <p className="mt-8 text-xs text-slate-400 text-center max-w-[280px]">
+            <p style={{
+              marginTop: 32,
+              fontSize: 12,
+              color: 'var(--text-muted)',
+              textAlign: 'center',
+              maxWidth: 280
+            }}>
               By signing in, you agree to our Terms of Service and Privacy Policy. Only @pec.edu.in accounts are permitted.
             </p>
           </div>
         </div>
       </main>
 
-      <footer className="w-full p-6 text-center text-sm text-slate-400">
+      <footer style={{
+        width: '100%',
+        padding: 24,
+        textAlign: 'center',
+        fontSize: 13,
+        color: 'var(--text-muted)'
+      }}>
         &copy; {new Date().getFullYear()} Punjab Engineering College - Computer Science &amp; Engineering Dept.
       </footer>
     </div>

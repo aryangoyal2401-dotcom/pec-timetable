@@ -51,7 +51,7 @@ router.post('/', async (req, res) => {
   try {
     const r = await db.run(
       'INSERT INTO classes (name, department_id, student_count, semester) VALUES (?, ?, ?, ?)',
-      [name, department_id || null, student_count, semester || null]
+      [name, department_id || null, student_count ? parseInt(student_count) : 60, semester || null]
     );
     res.status(201).json({ id: r.lastID, name, department_id, student_count, semester });
   } catch { res.status(409).json({ error: 'Class name already exists' }); }
@@ -64,7 +64,7 @@ router.put('/:id', async (req, res) => {
   const { name, department_id, student_count, semester } = req.body;
   await db.run(
     'UPDATE classes SET name=?, department_id=?, student_count=?, semester=? WHERE id=?',
-    [name ?? cls.name, department_id ?? cls.department_id, student_count ?? cls.student_count, semester ?? cls.semester, req.params.id]
+    [name ?? cls.name, department_id || null, student_count !== undefined ? (student_count ? parseInt(student_count) : 60) : cls.student_count, semester || null, req.params.id]
   );
   res.json({ id: parseInt(req.params.id), ...req.body });
 });
