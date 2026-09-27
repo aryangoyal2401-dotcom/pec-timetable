@@ -453,6 +453,14 @@ export default function CoursesPage() {
                   className="btn btn-primary btn-sm"
                   onClick={() => {
                     const alreadyAssigned = new Set(classOfferings.map(o => o.course_id));
+                    // If none assigned yet in this term, auto-select courses matching the batch's semester
+                    if (alreadyAssigned.size === 0) {
+                      catalogCourses.forEach(c => {
+                        if (c.semester == currentSemesterNum) {
+                          alreadyAssigned.add(c.id);
+                        }
+                      });
+                    }
                     setSelectedCatalogCourseIds(Array.from(alreadyAssigned));
                     setOfferingModal(true);
                   }}
@@ -929,8 +937,17 @@ export default function CoursesPage() {
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {catalogCourses.map(crs => {
+                  {catalogCourses
+                    .sort((a, b) => {
+                      // Sort by semester match first, then by name
+                      const aMatch = a.semester == currentSemesterNum ? -1 : 1;
+                      const bMatch = b.semester == currentSemesterNum ? -1 : 1;
+                      if (aMatch !== bMatch) return aMatch - bMatch;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map(crs => {
                     const isChecked = selectedCatalogCourseIds.includes(crs.id);
+                    const isSemesterMatch = crs.semester == currentSemesterNum;
                     return (
                       <label
                         key={crs.id}
@@ -943,6 +960,7 @@ export default function CoursesPage() {
                           border: `1px solid ${isChecked ? 'var(--primary)' : 'var(--border)'}`,
                           borderRadius: 6,
                           cursor: 'pointer',
+                          opacity: (crs.semester && !isSemesterMatch && !isChecked) ? 0.5 : 1
                         }}
                       >
                         <input

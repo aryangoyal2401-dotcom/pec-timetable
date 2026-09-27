@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
+import { useAcademicTerm } from '../context/AcademicTermContext';
 import {
   Users,
   BookOpen,
@@ -22,6 +23,7 @@ function matchesAssignment(assignment, classId, componentId, groupId = null) {
 }
 
 export default function AssignmentsPage() {
+  const { activeTerm } = useAcademicTerm();
   const [classes, setClasses] = useState([]);
   const [courses, setCourses] = useState([]);
   const [teachers, setTeachers] = useState([]);
@@ -39,19 +41,23 @@ export default function AssignmentsPage() {
   // Micro feedback state for inline saves: { [key]: 'saving' | 'saved' }
   const [saveStatus, setSaveStatus] = useState({});
 
+  const [offerings, setOfferings] = useState([]);
+
   const loadAll = async (showSpinner = false) => {
     if (showSpinner) setLoading(true);
     try {
-      const [clsList, crsList, tchrList, asgnList] = await Promise.all([
+      const [clsList, crsList, tchrList, asgnList, offList] = await Promise.all([
         api.getClasses(),
         api.getCourses(),
         api.getTeachers(),
-        api.getAssignments(),
+        api.getAssignments({ academic_term: activeTerm }),
+        api.getCourseOfferings({ academic_term: activeTerm }),
       ]);
       setClasses(clsList);
       setCourses(crsList);
       setTeachers(tchrList);
       setAssignments(asgnList);
+      setOfferings(offList);
 
       // Load groups for all classes in parallel
       const groupEntries = await Promise.all(
@@ -70,7 +76,7 @@ export default function AssignmentsPage() {
 
   useEffect(() => {
     loadAll(true);
-  }, []);
+  }, [activeTerm]);
 
   // Set saving indicator
   const setFeedback = (key, status) => {
@@ -93,6 +99,7 @@ export default function AssignmentsPage() {
 
     try {
       await api.assignTeacher({
+        academic_term: activeTerm,
         class_id: parseInt(classId),
         course_component_id: parseInt(componentId),
         group_id: groupId ? parseInt(groupId) : null,
@@ -100,7 +107,7 @@ export default function AssignmentsPage() {
       });
 
       // Reload assignments list quietly
-      const updatedAssignments = await api.getAssignments();
+      const updatedAssignments = await api.getAssignments({ academic_term: activeTerm });
       setAssignments(updatedAssignments);
       setFeedback(key, 'saved');
     } catch (err) {
@@ -125,7 +132,7 @@ export default function AssignmentsPage() {
           handleTeacherChange(classId, componentId, group.id, null)
         ));
       }
-      setAssignments(await api.getAssignments());
+      setAssignments(await api.getAssignments({ academic_term: activeTerm }));
     } catch (err) {
       alert(err.error || 'Failed to change lecture assignment mode');
     }
@@ -393,7 +400,13 @@ export default function AssignmentsPage() {
 
           // Courses for this class
           let classCourses = courses.filter((c) => {
-            if (c.class_id !== cl.id) return false;
+            // Check if course belongs to this batch (either legacy direct link or modern course_offerings assignment)
+            let isAssigned = (c.class_id === cl.id);
+            if (!isAssigned) {
+              isAssigned = offerings.some(o => o.course_id === c.id && o.class_id === cl.id);
+            }
+            if (!isAssigned) return false;
+
             // Hide courses from previous semesters if the class has a semester and course has a semester
             if (cl.semester && c.semester && c.semester !== cl.semester) return false;
             return true;
