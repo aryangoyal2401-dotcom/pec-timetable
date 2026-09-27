@@ -7,8 +7,8 @@ router.get('/', async (req, res) => {
   const db = await getDb();
   let query = `
     SELECT s.*, d.name as department_name, d.short_name as department_code,
-      (SELECT COALESCE(SUM(te.duration_hours), 0) FROM timetable_entries te WHERE te.scholar_id = s.id) as scheduled_hours,
-      (SELECT COUNT(*) FROM teacher_assignments ta WHERE ta.scholar_id = s.id) as assignment_count
+      (SELECT COALESCE(SUM(te.duration_hours), 0)::int FROM timetable_entries te WHERE te.scholar_id = s.id) as scheduled_hours,
+      (SELECT COUNT(*)::int FROM teacher_assignments ta WHERE ta.scholar_id = s.id) as assignment_count
     FROM scholars s
     LEFT JOIN departments d ON s.department_id = d.id
   `;
@@ -26,7 +26,7 @@ router.get('/:id', async (req, res) => {
   const db = await getDb();
   const scholar = await db.get(`
     SELECT s.*, d.name as department_name, d.short_name as department_code,
-      (SELECT COALESCE(SUM(te.duration_hours), 0) FROM timetable_entries te WHERE te.scholar_id = s.id) as scheduled_hours
+      (SELECT COALESCE(SUM(te.duration_hours), 0)::int FROM timetable_entries te WHERE te.scholar_id = s.id) as scheduled_hours
     FROM scholars s
     LEFT JOIN departments d ON s.department_id = d.id
     WHERE s.id = ?
