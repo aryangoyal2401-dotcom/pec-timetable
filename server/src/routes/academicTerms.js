@@ -26,12 +26,25 @@ router.post('/', async (req, res) => {
       [code.trim(), name.trim(), is_active ? 1 : 0, start_date || null, end_date || null]
     );
 
-    // If active or new, initialize class semesters for all existing classes if not already present
+    // Determine if there is a previous term to rollover from
+    const prevTerm = await db.get('SELECT code FROM academic_terms WHERE id != ? ORDER BY id DESC LIMIT 1', [r.lastID]);
+    
     const classes = await db.all('SELECT id, semester FROM classes');
     for (const cl of classes) {
+      let targetSemester = cl.semester || 1;
+      
+      if (prevTerm) {
+        // Find what semester this class was in the previous term
+        const prevClassSem = await db.get('SELECT semester FROM class_semesters WHERE academic_term = ? AND class_id = ?', [prevTerm.code, cl.id]);
+        if (prevClassSem) {
+           targetSemester = prevClassSem.semester + 1;
+           if (targetSemester > 8) targetSemester = 8; // Cap at 8
+        }
+      }
+
       await db.run(
-        `INSERT OR IGNORE INTO class_semesters (academic_term, class_id, semester) VALUES (?, ?, ?)`,
-        [code.trim(), cl.id, cl.semester || 1]
+        `INSERT INTO class_semesters (academic_term, class_id, semester) VALUES (?, ?, ?) ON CONFLICT (academic_term, class_id) DO NOTHING`,
+        [code.trim(), cl.id, targetSemester]
       );
     }
 

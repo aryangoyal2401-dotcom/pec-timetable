@@ -56,7 +56,7 @@ router.post('/offerings', async (req, res) => {
 
   for (const cId of targetCourseIds) {
     await db.run(
-      `INSERT OR IGNORE INTO course_offerings (academic_term, class_id, course_id, semester_number) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO course_offerings (academic_term, class_id, course_id, semester_number) VALUES (?, ?, ?, ?) ON CONFLICT (academic_term, class_id, course_id) DO NOTHING`,
       [academic_term, parseInt(class_id), parseInt(cId), parseInt(sem)]
     );
   }
@@ -186,7 +186,7 @@ router.put('/:id', async (req, res) => {
         );
       } else if (comp.type) {
         await db.run(
-          'INSERT OR IGNORE INTO course_components (course_id, type, hours_per_week, duration_hours, requires_lab) VALUES (?, ?, ?, ?, ?)',
+          'INSERT INTO course_components (course_id, type, hours_per_week, duration_hours, requires_lab) VALUES (?, ?, ?, ?, ?) ON CONFLICT (course_id, type) DO NOTHING',
           [req.params.id, comp.type, comp.hours_per_week || 1, comp.duration_hours || 1, comp.requires_lab ? 1 : 0]
         );
       }

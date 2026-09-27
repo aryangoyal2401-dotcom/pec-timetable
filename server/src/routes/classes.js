@@ -204,7 +204,7 @@ router.post('/:id/students/bulk', async (req, res) => {
   for (const { roll_no, name } of rows) {
     try {
       await db.run(
-        'INSERT OR IGNORE INTO students (class_id, roll_no, name) VALUES (?, ?, ?)',
+        'INSERT INTO students (class_id, roll_no, name) VALUES (?, ?, ?) ON CONFLICT (class_id, roll_no) DO NOTHING',
         [req.params.id, roll_no.toString().trim(), name.trim()]
       );
       added++;
@@ -256,7 +256,7 @@ router.post('/:id/groups/:groupId/members', async (req, res) => {
   let added = 0;
   for (const sid of ids) {
     const result = await db.run(
-      'INSERT OR IGNORE INTO group_members (group_id, student_id) VALUES (?, ?)',
+      'INSERT INTO group_members (group_id, student_id) VALUES (?, ?) ON CONFLICT (group_id, student_id) DO NOTHING',
       [gid, sid]
     );
     if (result.changes) added++;
@@ -293,7 +293,7 @@ router.put('/:id/groups/:groupId/members/bulk', async (req, res) => {
   // Replace all members
   await db.run('DELETE FROM group_members WHERE group_id = ?', gid);
   for (const sid of ids) {
-    await db.run('INSERT OR IGNORE INTO group_members (group_id, student_id) VALUES (?, ?)', [gid, sid]);
+    await db.run('INSERT INTO group_members (group_id, student_id) VALUES (?, ?) ON CONFLICT (group_id, student_id) DO NOTHING', [gid, sid]);
   }
 
   const { cnt } = await db.get('SELECT COUNT(*) as cnt FROM group_members WHERE group_id = ?', gid);
