@@ -15,7 +15,9 @@ async function getDb() {
     
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL.includes('neon.tech') ? { rejectUnauthorized: false } : false
+      ssl: process.env.DATABASE_URL.includes('neon.tech') ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 15000, // Wait 15s for Neon DB to wake from sleep
+      query_timeout: 10000
     });
 
     pool.sqliteWrapper = {

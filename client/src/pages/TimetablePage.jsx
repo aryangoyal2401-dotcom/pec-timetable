@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { useAcademicTerm } from '../context/AcademicTermContext';
-import { X, Plus, AlertCircle, CheckCircle, GraduationCap, Users, DoorOpen, RefreshCw, UserCheck } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { X, Plus, AlertCircle, CheckCircle, GraduationCap, Users, DoorOpen, RefreshCw, UserCheck, Printer } from 'lucide-react';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_LABELS = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
@@ -171,6 +172,7 @@ function StatusSection({ title, badgeEl, rows, defaultOpen = true, indent = 0 })
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function TimetablePage() {
+  const { isAdmin } = useAuth();
   const { activeTerm, activeTermObj } = useAcademicTerm();
   const [viewMode, setViewMode]             = useState('class'); // 'class' | 'teacher' | 'scholar' | 'room'
 
@@ -348,6 +350,7 @@ export default function TimetablePage() {
 
   // Modal handlers
   function openAdd(day, period) {
+    if (!isAdmin) return;
     if (viewMode !== 'class') return;
     const slot = slotMap[`${day}-${period}`];
     setModal({ day, period, slot, editEntry: null });
@@ -356,6 +359,7 @@ export default function TimetablePage() {
   }
 
   function openEdit(entry) {
+    if (!isAdmin) return;
     const slot = slotMap[`${entry.day}-${entry.period}`];
     setModal({ day: entry.day, period: entry.period, slot, editEntry: entry });
     setForm({
@@ -487,11 +491,12 @@ export default function TimetablePage() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', position: 'relative', zIndex: 9999 }}>
           {/* View Mode Switcher */}
           <div style={{
             display: 'flex', background: 'var(--bg-elevated)',
             border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 2,
+            position: 'relative', zIndex: 9999
           }}>
             <button
               className={`btn btn-sm ${viewMode === 'class' ? 'btn-primary' : ''}`}
@@ -593,7 +598,7 @@ export default function TimetablePage() {
             <RefreshCw size={14} />
           </button>
 
-          {viewMode === 'class' && (
+          {isAdmin && viewMode === 'class' && (
             <button
               className="btn btn-sm btn-primary"
               onClick={() => openAdd('Mon', 1)}
@@ -602,6 +607,15 @@ export default function TimetablePage() {
               <Plus size={14} /> Add Entry
             </button>
           )}
+
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => window.print()}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            title="Export timetable as PDF"
+          >
+            <Printer size={14} /> PDF
+          </button>
         </div>
       </div>
 
@@ -796,7 +810,7 @@ export default function TimetablePage() {
                                       onClick={(e) => { e.stopPropagation(); openEdit(entry); }}
                                       title={`${entry.course_name} (${entry.component_type}) ${entry.group_name ? `· ${entry.group_name}` : ''} · ${entry.teacher_name ? `Faculty: ${entry.teacher_name}` : 'Unassigned'}${entry.scholar_name ? ` · TA: ${entry.scholar_name}` : ''} · ${entry.room_name}${dur > 1 ? ` · ${dur}h session (P${period}–P${period + dur - 1})` : ''}`}
                                     >
-                                      {viewMode === 'class' && (
+                                      {isAdmin && viewMode === 'class' && (
                                         <button
                                           className="delete-btn"
                                           onClick={ev => handleDelete(entry.id, ev)}
@@ -892,7 +906,7 @@ export default function TimetablePage() {
                               </div>
 
                               {/* Add Button */}
-                              {viewMode === 'class' && (
+                              {isAdmin && viewMode === 'class' && (
                                 <div
                                   className="tt-cell-add"
                                   onClick={(e) => { e.stopPropagation(); openAdd(day, period); }}
@@ -915,7 +929,7 @@ export default function TimetablePage() {
       </div>
 
       {/* ─── Schedule Status Panel (Class View Only) ──────────────────────── */}
-      {viewMode === 'class' && selectedClass && !loading && scheduleStatus.length > 0 && (
+      {isAdmin && viewMode === 'class' && selectedClass && !loading && scheduleStatus.length > 0 && (
         <div style={{ marginTop: 24, padding: '0 0 24px' }}>
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div

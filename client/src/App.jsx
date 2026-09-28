@@ -38,14 +38,6 @@ function ProtectedLayout({ children }) {
   const { user, isAdmin, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
 
-  useEffect(() => {
-    if (!isAdmin) {
-      document.body.classList.add('viewer-mode');
-    } else {
-      document.body.classList.remove('viewer-mode');
-    }
-  }, [isAdmin]);
-
   if (!user) {
     return <Navigate to="/login" replace />;
   }
