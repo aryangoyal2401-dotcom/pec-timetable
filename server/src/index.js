@@ -83,6 +83,8 @@ app.get('/sitemap.xml', (req, res) => {
 });
 
 // ─── Serve Built Frontend in Production / Standalone Mode ───
+const clientDistPath = path.join(__dirname, '../../client/dist');
+if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
