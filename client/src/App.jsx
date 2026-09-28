@@ -36,7 +36,7 @@ const SECTIONS = ['Main', 'Master Data', 'Planning'];
 
 function ProtectedLayout({ children }) {
   const { user, isAdmin, logout } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -71,10 +71,10 @@ function ProtectedLayout({ children }) {
           </div>
           
           <nav className="sidebar-nav">
-            {SECTIONS.map(section => (
+            {(isAdmin ? SECTIONS : ['Main']).map(section => (
               <div key={section}>
                 <div className="nav-section-label">{section}</div>
-                {NAV.filter(n => n.section === section).map(({ label, to, icon: Icon }) => (
+                {NAV.filter(n => n.section === section && (isAdmin || n.to === '/timetable')).map(({ label, to, icon: Icon }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -167,7 +167,7 @@ function ProtectedLayout({ children }) {
 }
 
 function MainApp() {
-  const { loading } = useAuth();
+  const { loading, isAdmin } = useAuth();
   
   if (loading) {
     return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>Loading session...</div>;
@@ -179,7 +179,7 @@ function MainApp() {
       <Route path="/*" element={
         <ProtectedLayout>
           <Routes>
-            <Route path="/"            element={<DashboardPage />} />
+            <Route path="/"            element={isAdmin ? <DashboardPage /> : <Navigate to="/timetable" replace />} />
             <Route path="/timetable"   element={<TimetablePage />} />
             <Route path="/teachers"    element={<TeachersPage />} />
             <Route path="/scholars"    element={<ScholarsPage />} />
