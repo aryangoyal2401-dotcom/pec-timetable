@@ -6,6 +6,7 @@ const { initDb, getDb } = require('./db/database');
 const { seedDatabase } = require('./db/seed');
 const path = require('path');
 const fs = require('fs');
+const { requireAuth } = require('./middleware/auth');
 
 const app = express();
 
