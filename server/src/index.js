@@ -4,7 +4,8 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const { initDb, getDb } = require('./db/database');
 const { seedDatabase } = require('./db/seed');
-const { requireAuth } = require('./middleware/auth');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 
@@ -69,11 +70,19 @@ app.get('/api/timeslots', async (req, res) => {
   res.json(await db.all('SELECT * FROM time_slots ORDER BY day, period'));
 });
 
+// ─── Serve robots.txt & sitemap.xml explicitly (required for Google)
+app.get('/robots.txt', (req, res) => {
+  const filePath = path.join(__dirname, '../../client/public/robots.txt');
+  res.type('text/plain');
+  res.sendFile(filePath);
+});
+app.get('/sitemap.xml', (req, res) => {
+  const filePath = path.join(__dirname, '../../client/public/sitemap.xml');
+  res.type('application/xml');
+  res.sendFile(filePath);
+});
+
 // ─── Serve Built Frontend in Production / Standalone Mode ───
-const path = require('path');
-const fs = require('fs');
-const clientDistPath = path.join(__dirname, '../../client/dist');
-if (fs.existsSync(clientDistPath)) {
   app.use(express.static(clientDistPath));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
