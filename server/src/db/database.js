@@ -63,12 +63,30 @@ async function getDb() {
 
 async function initDb() {
   const db = await getDb();
-  console.log('Connecting to PostgreSQL...');
-  
+  console.log('Connecting to PostgreSQL with retry logic...');
+  const attempts = parseInt(process.env.DB_RETRY_ATTEMPTS) || 8;
+  const delayMs = parseInt(process.env.DB_RETRY_DELAY) || 8000;
+
+  for (let i = 0; i < attempts; i++) {
+    try {
+      // Simple test query to verify connection
+      await pool.query('SELECT 1');
+      console.log('✅ PostgreSQL connection established');
+      break;
+    } catch (err) {
+      console.warn(`⚠️ DB connection attempt ${i + 1} failed: ${err.message}`);
+      if (i === attempts - 1) {
+        throw err;
+      }
+      await new Promise(res => setTimeout(res, delayMs));
+    }
+  }
+
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
   await pool.query(schema);
   console.log('✅ Database schema initialized in PostgreSQL');
   return db;
 }
+
 
 module.exports = { getDb, initDb, pool };

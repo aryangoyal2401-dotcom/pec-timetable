@@ -25,4 +25,17 @@ function requireAdmin(req, res, next) {
   });
 }
 
-module.exports = { requireAuth, requireAdmin };
+// Generic role‑based middleware – pass an array of allowed roles
+function requireRole(allowedRoles) {
+  return (req, res, next) => {
+    requireAuth(req, res, () => {
+      if (req.user && allowedRoles.includes(req.user.role)) {
+        next();
+      } else {
+        res.status(403).json({ error: 'Forbidden: Insufficient role' });
+      }
+    });
+  };
+}
+
+module.exports = { requireAuth, requireAdmin, requireRole };

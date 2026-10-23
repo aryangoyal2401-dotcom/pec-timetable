@@ -105,13 +105,13 @@ async function start() {
   try {
     await initDb();
     await seedDatabase();
-    app.listen(PORT, () => {
-      console.log(`🚀 Timetable API running on http://localhost:${PORT}`);
-    });
   } catch (err) {
-    console.error('❌ Failed to start server:', err);
-    process.exit(1);
+    console.warn('⚠️ DB initialization failed, continuing without DB (dev mode):', err.message);
+    // Proceed without terminating the process; routes that need DB will error when called.
   }
+  app.listen(PORT, () => {
+    console.log(`🚀 Timetable API running on http://localhost:${PORT}`);
+  });
 }
 
 start();

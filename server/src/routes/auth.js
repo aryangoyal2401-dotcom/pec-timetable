@@ -5,11 +5,14 @@ const jwt = require('jsonwebtoken');
 const { getDb } = require('../db/database');
 const { requireAuth } = require('../middleware/auth');
 
+// In-memory fallback user store when DB is unavailable (dev mode)
+const fallbackUserStore = new Map(); // email -> user object
+
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 router.post('/google', async (req, res) => {
   const { credential } = req.body;
-  
+
   if (!credential) {
     return res.status(400).json({ error: 'No credential provided' });
   }
@@ -30,38 +33,55 @@ router.post('/google', async (req, res) => {
       return res.status(403).json({ error: 'Only @pec.edu.in emails are allowed.' });
     }
 
-    const db = await getDb();
-    
-    // Check if user exists
-    let user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
-    
-    if (!user) {
-      // Auto-assign admin if it's the super admin email
-      const role = (email === process.env.SUPER_ADMIN_EMAIL) ? 'admin' : 'viewer';
-      const r = await db.run(
-        'INSERT INTO users (email, name, picture, role) VALUES (?, ?, ?, ?)',
-        [email, name, picture, role]
-      );
-      user = { id: r.lastID, email, name, picture, role };
-    } else {
-      // Update picture and name if they changed
-      await db.run('UPDATE users SET name = ?, picture = ? WHERE email = ?', [name, picture, email]);
-      user.name = name;
-      user.picture = picture;
+    // Attempt to get a DB connection – if it fails we fallback to in‑memory.
+    let dbAvailable = true;
+    let db;
+    try {
+      db = await getDb();
+    } catch (dbErr) {
+      dbAvailable = false;
+      console.warn('⚠️ DB not reachable, using in‑memory user store:', dbErr.message);
     }
 
-    // Create session JWT
+    let user;
+    if (dbAvailable) {
+      // Normal flow: look up or create user in PostgreSQL
+      user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
+      if (!user) {
+        const role = email === process.env.SUPER_ADMIN_EMAIL ? 'admin' : 'viewer';
+        const r = await db.run('INSERT INTO users (email, name, picture, role) VALUES (?, ?, ?, ?)', [email, name, picture, role]);
+        user = { id: r.lastID, email, name, picture, role };
+      } else {
+        // Keep name/picture current
+        await db.run('UPDATE users SET name = ?, picture = ? WHERE email = ?', [name, picture, email]);
+        user.name = name;
+        user.picture = picture;
+      }
+    } else {
+      // Fallback: store user in memory for the session duration
+      if (fallbackUserStore.has(email)) {
+        user = fallbackUserStore.get(email);
+        user.name = name;
+        user.picture = picture;
+      } else {
+        const role = email === process.env.SUPER_ADMIN_EMAIL ? 'admin' : 'viewer';
+        user = { email, name, picture, role };
+        fallbackUserStore.set(email, user);
+      }
+    }
+
+    // Issue JWT session cookie
     const token = jwt.sign(
       { email: user.email, name: user.name, picture: user.picture, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' } // 7 days session
+      { expiresIn: '7d' }
     );
 
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Only secure in prod
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({ message: 'Login successful', user: { email: user.email, name: user.name, picture: user.picture, role: user.role } });
