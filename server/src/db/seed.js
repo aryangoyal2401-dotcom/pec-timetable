@@ -95,6 +95,7 @@ async function seedDatabase() {
 
   // ─── Courses ─────────────────────────────────────────────
   const coursesData = [
+    ['Theory of Computation',       'CTN501', deptId],
     ['Database Management Systems', 'CSN301', deptId],
     ['Operating Systems',           'CSN302', deptId],
     ['Computer Networks',           'CSN303', deptId],
@@ -118,7 +119,7 @@ async function seedDatabase() {
       await db.run(`INSERT INTO course_components (course_id, type, hours_per_week, duration_hours, requires_lab) VALUES (?, ?, ?, ?, ?)`,
         [course.id, 'lab', 2, 2, 1]);
     }
-    if (['CSN501','CSN502'].includes(course.code)) {
+    if (['CTN501','CSN501','CSN502','CSN305'].includes(course.code)) {
       await db.run(`INSERT INTO course_components (course_id, type, hours_per_week, duration_hours, requires_lab) VALUES (?, ?, ?, ?, ?)`,
         [course.id, 'tutorial', 1, 1, 0]);
     }
