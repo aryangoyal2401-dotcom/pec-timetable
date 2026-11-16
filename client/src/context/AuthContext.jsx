@@ -32,6 +32,16 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const loginDev = async (data) => {
+    try {
+      const res = await api.loginDev(data);
+      setUser(res.user);
+      return res;
+    } catch (err) {
+      throw err;
+    }
+  };
+
   const logout = async () => {
     try {
       await api.logout();
@@ -43,7 +53,7 @@ export function AuthProvider({ children }) {
   const isAdmin = user?.role === 'admin';
 
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, login, logout, checkSession }}>
+    <AuthContext.Provider value={{ user, isAdmin, loading, login, loginDev, logout, checkSession }}>
       {children}
     </AuthContext.Provider>
   );

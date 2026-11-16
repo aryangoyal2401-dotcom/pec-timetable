@@ -77,7 +77,19 @@ function ScheduleRow({ row }) {
 
   return (
     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>{row.course_name}</td>
+      <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>
+        {row.course_code ? (
+          <>
+            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{row.course_code}</span>
+            <span style={{ color: 'var(--text-muted)', marginLeft: 6, fontSize: 12 }}>{row.course_name}</span>
+            {row.course_short_name && row.course_short_name !== row.course_code && (
+              <span style={{ color: 'var(--text-muted)', marginLeft: 4, fontSize: 11 }}>({row.course_short_name})</span>
+            )}
+          </>
+        ) : (
+          row.course_name
+        )}
+      </td>
       <td style={{ padding: '7px 12px' }}>{typeBadge(row.component_type)}</td>
       <td style={{ padding: '7px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
         {row.required_hours}h
@@ -204,6 +216,7 @@ export default function TimetablePage() {
 
   const [scheduleStatus, setScheduleStatus] = useState([]);
   const [statusOpen, setStatusOpen]         = useState(true);
+  const [offerings, setOfferings]           = useState([]);
 
   // Initial load
   useEffect(() => {
@@ -214,12 +227,14 @@ export default function TimetablePage() {
       api.getRooms(),
       api.getTimeSlots(),
       api.getCourses(),
-    ]).then(async ([cl, t, sch, r, s, coursesList]) => {
+      api.getCourseOfferings({ academic_term: activeTerm }).catch(() => []),
+    ]).then(async ([cl, t, sch, r, s, coursesList, offList]) => {
       setClasses(cl);
       setTeachers(t);
       setScholars(sch);
       setRooms(r);
       setSlots(s);
+      setOfferings(offList || []);
 
       // Load full component details for each course
       const fullCourses = await Promise.all(
@@ -245,11 +260,13 @@ export default function TimetablePage() {
         api.getAssignmentsByClass(selectedClass, activeTerm),
         api.getClass(selectedClass),
         api.getScheduleStatus(selectedClass, activeTerm),
-      ]).then(([tt, assgn, cls, status]) => {
+        api.getCourseOfferings({ academic_term: activeTerm }).catch(() => []),
+      ]).then(([tt, assgn, cls, status, offList]) => {
         setEntries(tt);
         setAssignments(assgn);
         setGroups(cls.groups || []);
         setScheduleStatus(status || []);
+        if (offList) setOfferings(offList);
       }).finally(() => setLoading(false));
     } else if (viewMode === 'teacher') {
       if (!selectedTeacher) { setEntries([]); setTeacherWorkload(null); return; }
@@ -278,16 +295,18 @@ export default function TimetablePage() {
 
   const refreshEntries = async () => {
     if (viewMode === 'class' && selectedClass) {
-      const [tt, assgn, cls, status] = await Promise.all([
+      const [tt, assgn, cls, status, offList] = await Promise.all([
         api.getTimetable({ class_id: selectedClass, academic_term: activeTerm }),
         api.getAssignmentsByClass(selectedClass, activeTerm),
         api.getClass(selectedClass),
         api.getScheduleStatus(selectedClass, activeTerm),
+        api.getCourseOfferings({ academic_term: activeTerm }).catch(() => []),
       ]);
       setEntries(tt);
       setAssignments(assgn);
       setGroups(cls.groups || []);
       setScheduleStatus(status || []);
+      if (offList) setOfferings(offList);
     } else if (viewMode === 'teacher' && selectedTeacher) {
       const [tt, wl] = await Promise.all([
         api.getTimetable({ teacher_id: selectedTeacher, academic_term: activeTerm }),
@@ -346,6 +365,47 @@ export default function TimetablePage() {
         requires_lab: comp.requires_lab,
       });
     });
+  });
+
+  // Target class ID for modal / class view (selected class or class of entry being edited)
+  const modalClassId = modal?.editEntry ? Number(modal.editEntry.class_id) : (selectedClass ? Number(selectedClass) : null);
+
+  // Components belonging specifically to the selected batch
+  const batchComponents = allComponents.filter(comp => {
+    // If editing an existing entry, always keep that entry's component selectable
+    if (modal?.editEntry && Number(modal.editEntry.course_component_id) === Number(comp.id)) {
+      return true;
+    }
+
+    if (!modalClassId) return true;
+
+    // 1. Matched via course_offerings for this batch in active term
+    const inOfferings = offerings.some(o =>
+      Number(o.class_id) === modalClassId &&
+      (Number(o.course_id) === Number(comp.course_id) || Number(o.id) === Number(comp.course_id))
+    );
+    if (inOfferings) return true;
+
+    // 2. Matched via legacy direct course.class_id link
+    const parentCourse = allCourses.find(c => Number(c.id) === Number(comp.course_id));
+    if (parentCourse && Number(parentCourse.class_id) === modalClassId) {
+      return true;
+    }
+
+    // 3. Matched via teacher_assignments for this batch & term
+    const inAssignments = assignments.some(a =>
+      Number(a.class_id) === modalClassId &&
+      Number(a.course_component_id) === Number(comp.id)
+    );
+    if (inAssignments) return true;
+
+    // 4. Matched via scheduleStatus
+    const inStatus = scheduleStatus.some(s =>
+      Number(s.course_component_id) === Number(comp.id)
+    );
+    if (inStatus) return true;
+
+    return false;
   });
 
   // Modal handlers
@@ -808,7 +868,7 @@ export default function TimetablePage() {
                                       key={entry.id}
                                       className={`tt-entry ${entryColor(entry.course_component_id)}`}
                                       onClick={(e) => { e.stopPropagation(); openEdit(entry); }}
-                                      title={`${entry.course_name} (${entry.component_type}) ${entry.group_name ? `· ${entry.group_name}` : ''} · ${entry.teacher_name ? `Faculty: ${entry.teacher_name}` : 'Unassigned'}${entry.scholar_name ? ` · TA: ${entry.scholar_name}` : ''} · ${entry.room_name}${dur > 1 ? ` · ${dur}h session (P${period}–P${period + dur - 1})` : ''}`}
+                                      title={`${entry.course_code ? `[${entry.course_code}] ` : ''}${entry.course_name}${entry.course_short_name && entry.course_short_name !== entry.course_code ? ` (${entry.course_short_name})` : ''} · ${entry.component_type.toUpperCase()}${entry.group_name ? ` · ${entry.group_name}` : ''} · ${entry.teacher_name ? `Faculty: ${entry.teacher_name}` : 'Unassigned'}${entry.scholar_name ? ` · TA: ${entry.scholar_name}` : ''} · ${entry.room_name}${dur > 1 ? ` · ${dur}h session (P${period}–P${period + dur - 1})` : ''}`}
                                     >
                                       {isAdmin && viewMode === 'class' && (
                                         <button
@@ -818,10 +878,21 @@ export default function TimetablePage() {
                                         >×</button>
                                       )}
 
-                                      {/* Primary Line: Course Shortform & Group */}
+                                      {/* Primary Line: Course Code, Shortform & Group */}
                                       <div className="tt-entry-primary">
                                         <span style={{ fontWeight: 700 }}>
-                                          {entry.course_short_name || entry.course_code || entry.course_name}
+                                          {entry.course_code ? (
+                                            <>
+                                              <span>{entry.course_code}</span>
+                                              {entry.course_short_name && entry.course_short_name !== entry.course_code && (
+                                                <span style={{ opacity: 0.85, fontWeight: 600, marginLeft: 3 }}>
+                                                  ({entry.course_short_name})
+                                                </span>
+                                              )}
+                                            </>
+                                          ) : (
+                                            entry.course_short_name || entry.course_name
+                                          )}
                                         </span>
                                         {entry.group_name && (
                                           <span className="tt-group-pill">
@@ -887,11 +958,22 @@ export default function TimetablePage() {
                                       key={`cont-${entry.id}`}
                                       className={`tt-entry tt-entry-continuation ${entryColor(entry.course_component_id)}`}
                                       onClick={(e) => { e.stopPropagation(); openEdit(entry); }}
-                                      title={`Continuing from P${entry.period} (${formatTime(entry.start_time)}): ${entry.course_name} ${entry.group_name ? `(${entry.group_name})` : ''}`}
+                                      title={`Continuing from P${entry.period} (${formatTime(entry.start_time)}): ${entry.course_code ? `[${entry.course_code}] ` : ''}${entry.course_name}${entry.course_short_name && entry.course_short_name !== entry.course_code ? ` (${entry.course_short_name})` : ''} ${entry.group_name ? `(${entry.group_name})` : ''}`}
                                     >
                                       <div className="tt-entry-primary" style={{ fontSize: 9.5, opacity: 0.9 }}>
                                         <span style={{ fontWeight: 700 }}>
-                                          ↳ {entry.course_short_name || entry.course_code || entry.course_name}
+                                          ↳ {entry.course_code ? (
+                                            <>
+                                              <span>{entry.course_code}</span>
+                                              {entry.course_short_name && entry.course_short_name !== entry.course_code && (
+                                                <span style={{ opacity: 0.85, fontWeight: 600, marginLeft: 3 }}>
+                                                  ({entry.course_short_name})
+                                                </span>
+                                              )}
+                                            </>
+                                          ) : (
+                                            entry.course_short_name || entry.course_name
+                                          )}
                                         </span>
                                         {entry.group_name && (
                                           <span style={{ fontSize: 9, opacity: 0.85 }}>({entry.group_name})</span>
@@ -1015,10 +1097,19 @@ export default function TimetablePage() {
             <div className="modal-header">
               <div>
                 <div className="modal-title">
-                  {modal.editEntry ? 'Edit Entry' : 'Add Entry'} — {DAY_LABELS[modal.day]}, {formatTime(modal.slot?.start_time)}–{formatTime(modal.slot?.end_time)}
+                  {modal.editEntry ? (
+                    <>
+                      Edit Entry: {modal.editEntry.course_code ? `[${modal.editEntry.course_code}] ` : ''}{modal.editEntry.course_name}
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginLeft: 6 }}>
+                        ({modal.editEntry.component_type.toUpperCase()})
+                      </span>
+                    </>
+                  ) : (
+                    <>Add Entry — {DAY_LABELS[modal.day]}, P{modal.period}</>
+                  )}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {modal.slot?.start_time} – {modal.slot?.end_time}
+                  {DAY_LABELS[modal.day]}, {formatTime(modal.slot?.start_time)}–{formatTime(modal.slot?.end_time)}
                 </div>
               </div>
               <button className="btn btn-icon btn-secondary" onClick={() => setModal(null)}>
@@ -1039,7 +1130,14 @@ export default function TimetablePage() {
 
                 {/* Course Component */}
                 <div className="form-group">
-                  <label className="form-label">Course Component</label>
+                  <label className="form-label">
+                    Course Component
+                    {modalClassId && (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>
+                        (Assigned to {classes.find(c => c.id === modalClassId)?.name || 'this batch'})
+                      </span>
+                    )}
+                  </label>
                   <select
                     className="form-select"
                     value={form.course_component_id}
@@ -1057,13 +1155,26 @@ export default function TimetablePage() {
                     }}
                     required
                   >
-                    <option value="">Select course &amp; component</option>
-                    {allComponents.map(comp => (
+                    <option value="">
+                      {batchComponents.length === 0
+                        ? '— No courses assigned to this batch —'
+                        : 'Select course & component'}
+                    </option>
+                    {batchComponents.map(comp => (
                       <option key={comp.id} value={comp.id}>
-                        {comp.course_short_name ? `[${comp.course_short_name}] ` : ''}{comp.course_name} — {comp.component_type.toUpperCase()} ({comp.hours_per_week}h/wk)
+                        {comp.course_code ? `[${comp.course_code}] ` : (comp.course_short_name ? `[${comp.course_short_name}] ` : '')}
+                        {comp.course_name}
+                        {comp.course_short_name && comp.course_short_name !== comp.course_code ? ` (${comp.course_short_name})` : ''}
+                        {' — '}
+                        {comp.component_type.toUpperCase()} ({comp.hours_per_week}h/wk)
                       </option>
                     ))}
                   </select>
+                  {batchComponents.length === 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 5 }}>
+                      ⚠️ No courses assigned to this batch for {activeTerm}. Assign courses to this batch in <strong>Courses &gt; Batch Offerings</strong>.
+                    </div>
+                  )}
                 </div>
 
                 {/* Duration & Requirement info */}
@@ -1073,16 +1184,29 @@ export default function TimetablePage() {
                     background: 'var(--bg-elevated)', border: '1px solid var(--border)',
                     fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   }}>
-                    <span>
-                      Duration: <strong style={{ color: componentDuration > 1 ? 'var(--primary, #6366f1)' : 'inherit' }}>
-                        {componentDuration} hour{componentDuration > 1 ? 's' : ''} session
-                      </strong>
-                    </span>
-                    {selectedComp.requires_lab ? (
-                      <span className="badge badge-amber">🧪 Lab room required</span>
-                    ) : (
-                      <span className="badge badge-indigo">📖 Classroom</span>
-                    )}
+                    <div>
+                      {selectedComp.course_code && (
+                        <span style={{ fontWeight: 700, color: 'var(--primary)', marginRight: 6 }}>
+                          [{selectedComp.course_code}]
+                        </span>
+                      )}
+                      <span>{selectedComp.course_name}</span>
+                      {selectedComp.course_short_name && selectedComp.course_short_name !== selectedComp.course_code && (
+                        <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>({selectedComp.course_short_name})</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span>
+                        Duration: <strong style={{ color: componentDuration > 1 ? 'var(--primary, #6366f1)' : 'inherit' }}>
+                          {componentDuration} hour{componentDuration > 1 ? 's' : ''} session
+                        </strong>
+                      </span>
+                      {selectedComp.requires_lab ? (
+                        <span className="badge badge-amber">🧪 Lab room required</span>
+                      ) : (
+                        <span className="badge badge-indigo">📖 Classroom</span>
+                      )}
+                    </div>
                   </div>
                 )}
 

@@ -17,7 +17,8 @@ import {
   GraduationCap,
   ListPlus,
   ExternalLink,
-  Calendar
+  Calendar,
+  Pencil
 } from 'lucide-react';
 
 export default function CoursesPage() {
@@ -275,6 +276,30 @@ export default function CoursesPage() {
       department_id: c.department_id || '',
       semester: c.semester || '',
     });
+    const comps = c.components || [];
+    const lec = comps.find(cp => cp.type === 'lecture');
+    const lab = comps.find(cp => cp.type === 'lab');
+    const tut = comps.find(cp => cp.type === 'tutorial');
+
+    setHasLecture(!!lec);
+    setLectureForm({
+      hours_per_week: lec ? lec.hours_per_week : 3,
+      duration_hours: lec ? lec.duration_hours : 1,
+    });
+
+    setHasLab(!!lab);
+    setLabForm({
+      hours_per_week: lab ? lab.hours_per_week : 2,
+      duration_hours: lab ? lab.duration_hours : 2,
+      requires_lab: lab ? !!lab.requires_lab : true,
+    });
+
+    setHasTutorial(!!tut);
+    setTutForm({
+      hours_per_week: tut ? tut.hours_per_week : 1,
+      duration_hours: tut ? tut.duration_hours : 1,
+    });
+
     setError('');
     setMasterModal(c);
   };
@@ -331,6 +356,44 @@ export default function CoursesPage() {
     if (!confirm('Delete this course from the master catalog? All components and historical offerings will be removed.')) return;
     await api.deleteCourse(id);
     loadAll(false);
+  };
+
+  const openEditComponent = (course, comp) => {
+    setCompModal({ courseId: course.id, compId: comp.id, courseName: course.name });
+    setCompForm({
+      type: comp.type,
+      hours_per_week: comp.hours_per_week,
+      duration_hours: comp.duration_hours,
+      requires_lab: !!comp.requires_lab
+    });
+    setError('');
+  };
+
+  const handleComponentSubmit = async (e) => {
+    e.preventDefault();
+    if (!compModal) return;
+    try {
+      await api.updateComponent(compModal.courseId, compModal.compId, {
+        type: compForm.type,
+        hours_per_week: parseInt(compForm.hours_per_week) || 1,
+        duration_hours: parseInt(compForm.duration_hours) || 1,
+        requires_lab: compForm.requires_lab
+      });
+      setCompModal(null);
+      loadAll(false);
+    } catch (err) {
+      alert(err.error || 'Failed to update component');
+    }
+  };
+
+  const handleDeleteComponent = async (courseId, compId, type) => {
+    if (!confirm(`Delete ${type.toUpperCase()} component? Any associated teacher allocations and timetable entries will be removed.`)) return;
+    try {
+      await api.deleteComponent(courseId, compId);
+      loadAll(false);
+    } catch (err) {
+      alert(err.error || 'Failed to delete component');
+    }
   };
 
   const COMP_BADGES = {
@@ -583,6 +646,25 @@ export default function CoursesPage() {
                                           • {currentLabGroups.length > 0 ? `Lab sub-groups (${currentLabGroups.map(g => g.name).join(', ')})` : 'Whole class lab/tutorial'}
                                         </span>
                                       )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        className="btn btn-sm btn-secondary"
+                                        style={{ height: 24, fontSize: 11, padding: '0 8px' }}
+                                        onClick={() => openEditComponent({ id: offering.course_id || offering.id, name: offering.name }, comp)}
+                                        title="Edit this component (hours, duration, lab)"
+                                      >
+                                        <Pencil size={11} /> Edit Component
+                                      </button>
+                                      <button
+                                        className="btn btn-sm btn-danger btn-icon"
+                                        style={{ height: 24, width: 24, padding: 0 }}
+                                        onClick={() => handleDeleteComponent(offering.course_id || offering.id, comp.id, comp.type)}
+                                        title="Delete this component"
+                                      >
+                                        <Trash2 size={11} />
+                                      </button>
                                     </div>
                                   </div>
 
@@ -895,6 +977,28 @@ export default function CoursesPage() {
                               {comp.requires_lab && (
                                 <span className="badge badge-amber" style={{ fontSize: 10 }}>Lab Required</span>
                               )}
+                              <button
+                                className="btn btn-sm btn-secondary btn-icon"
+                                style={{ width: 22, height: 22, padding: 0, marginLeft: 4 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditComponent(c, comp);
+                                }}
+                                title="Edit component"
+                              >
+                                <Pencil size={11} />
+                              </button>
+                              <button
+                                className="btn btn-sm btn-danger btn-icon"
+                                style={{ width: 22, height: 22, padding: 0 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteComponent(c.id, comp.id, comp.type);
+                                }}
+                                title="Delete component"
+                              >
+                                <Trash2 size={11} />
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -1086,11 +1190,10 @@ export default function CoursesPage() {
                 </div>
 
                 {/* Course Components Configuration */}
-                {masterModal === 'add' && (
-                  <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-                    <label className="form-label" style={{ marginBottom: 10, fontSize: 13, fontWeight: 700 }}>
-                      Course Components (Lectures, Labs, Tutorials)
-                    </label>
+                <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                  <label className="form-label" style={{ marginBottom: 10, fontSize: 13, fontWeight: 700 }}>
+                    Course Components (Lectures, Labs, Tutorials)
+                  </label>
 
                     {/* Lecture */}
                     <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 10 }}>
@@ -1209,12 +1312,88 @@ export default function CoursesPage() {
                       )}
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
 
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setMasterModal(null)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">{masterModal === 'add' ? 'Add Course to Catalog' : 'Save Changes'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ─── MODAL 3: Edit Course Component ───────────────────────────── */}
+      {compModal && (
+        <div className="modal-overlay" onClick={() => setCompModal(null)}>
+          <div className="modal" style={{ maxWidth: 440, width: '92vw' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <div className="modal-title">Edit Component: {compForm.type?.toUpperCase()}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Course: <b>{compModal.courseName}</b>
+                </div>
+              </div>
+              <button className="btn btn-icon btn-secondary" onClick={() => setCompModal(null)}>
+                <X size={14} />
+              </button>
+            </div>
+            <form onSubmit={handleComponentSubmit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Component Type</label>
+                  <select
+                    className="form-select"
+                    value={compForm.type}
+                    onChange={e => setCompForm(f => ({ ...f, type: e.target.value }))}
+                  >
+                    <option value="lecture">Lecture</option>
+                    <option value="lab">Lab (Practical)</option>
+                    <option value="tutorial">Tutorial</option>
+                  </select>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Hours / Week *</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      min="1"
+                      max="15"
+                      value={compForm.hours_per_week}
+                      onChange={e => setCompForm(f => ({ ...f, hours_per_week: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">Session Duration (hrs) *</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      min="1"
+                      max="5"
+                      value={compForm.duration_hours}
+                      onChange={e => setCompForm(f => ({ ...f, duration_hours: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="flex items-center gap-2" style={{ cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                    <input
+                      type="checkbox"
+                      checked={compForm.requires_lab}
+                      onChange={e => setCompForm(f => ({ ...f, requires_lab: e.target.checked }))}
+                    />
+                    Requires Dedicated Lab / Computer Lab Room
+                  </label>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setCompModal(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary">Save Component</button>
               </div>
             </form>
           </div>

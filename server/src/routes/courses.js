@@ -178,15 +178,30 @@ router.put('/:id', async (req, res) => {
 
   if (Array.isArray(components)) {
     // If full components array supplied on edit, sync components
+    const incomingCompTypes = components.map(c => c.type).filter(Boolean);
+    const existingComps = await db.all('SELECT * FROM course_components WHERE course_id = ?', req.params.id);
+
+    // Remove components that were unchecked/deleted
+    for (const exComp of existingComps) {
+      if (!incomingCompTypes.includes(exComp.type)) {
+        await db.run('DELETE FROM timetable_entries WHERE course_component_id = ?', exComp.id);
+        await db.run('DELETE FROM teacher_assignments WHERE course_component_id = ?', exComp.id);
+        await db.run('DELETE FROM course_components WHERE id = ?', exComp.id);
+      }
+    }
+
+    // Insert or update existing components
     for (const comp of components) {
-      if (comp.id) {
+      if (!comp.type) continue;
+      const matched = existingComps.find(ec => ec.type === comp.type);
+      if (matched) {
         await db.run(
-          'UPDATE course_components SET type=?, hours_per_week=?, duration_hours=?, requires_lab=? WHERE id=? AND course_id=?',
-          [comp.type, comp.hours_per_week || 1, comp.duration_hours || 1, comp.requires_lab ? 1 : 0, comp.id, req.params.id]
+          'UPDATE course_components SET hours_per_week=?, duration_hours=?, requires_lab=? WHERE id=?',
+          [comp.hours_per_week || 1, comp.duration_hours || 1, comp.requires_lab ? 1 : 0, matched.id]
         );
-      } else if (comp.type) {
+      } else {
         await db.run(
-          'INSERT INTO course_components (course_id, type, hours_per_week, duration_hours, requires_lab) VALUES (?, ?, ?, ?, ?) ON CONFLICT (course_id, type) DO NOTHING',
+          'INSERT INTO course_components (course_id, type, hours_per_week, duration_hours, requires_lab) VALUES (?, ?, ?, ?, ?)',
           [req.params.id, comp.type, comp.hours_per_week || 1, comp.duration_hours || 1, comp.requires_lab ? 1 : 0]
         );
       }

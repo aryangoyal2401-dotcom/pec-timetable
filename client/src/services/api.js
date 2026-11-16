@@ -28,6 +28,7 @@ async function authRequest(method, path, body) {
 export const api = {
   // Auth & Admin
   loginWithGoogle: (credential) => authRequest('POST', '/auth/google', { credential }),
+  loginDev: (data) => authRequest('POST', '/auth/dev-login', data),
   logout: () => authRequest('POST', '/auth/logout'),
   getMe: () => authRequest('GET', '/auth/me'),
   getUsers: () => authRequest('GET', '/admin/users'),
@@ -105,6 +106,7 @@ export const api = {
   updateCourse: (id, data) => request('PUT', `/courses/${id}`, data),
   deleteCourse: (id) => request('DELETE', `/courses/${id}`),
   createComponent: (courseId, data) => request('POST', `/courses/${courseId}/components`, data),
+  updateComponent: (courseId, compId, data) => request('PUT', `/courses/${courseId}/components/${compId}`, data),
   deleteComponent: (courseId, compId) => request('DELETE', `/courses/${courseId}/components/${compId}`),
 
   // Course Offerings (Term-Scoped Batch Course Assignments)

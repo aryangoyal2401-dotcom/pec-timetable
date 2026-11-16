@@ -1,5 +1,7 @@
 const jwt = require('jsonwebtoken');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'pec-cse-timetable-super-secret-key-2026';
+
 function requireAuth(req, res, next) {
   const token = req.cookies?.token;
   if (!token) {
@@ -7,7 +9,7 @@ function requireAuth(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded; // { email, name, picture, role }
     next();
   } catch (err) {
