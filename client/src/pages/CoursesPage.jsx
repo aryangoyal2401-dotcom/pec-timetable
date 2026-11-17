@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { api } from '../services/api';
 import { useAcademicTerm } from '../context/AcademicTermContext';
 import {
@@ -20,6 +20,257 @@ import {
   Calendar,
   Pencil
 } from 'lucide-react';
+import { hasEmbeddedDesignation } from '../utils/nameFormat';
+
+// Reusable Searchable Combobox for assigning Faculty & Scholars with keyword search
+function SearchableSelect({
+  value,
+  onChange,
+  options = [],
+  placeholder = 'Select...',
+  emptyLabel = 'Unassigned (None)',
+  searchPlaceholder = 'Type to search...'
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const selectedOption = options.find(o => String(o.id) === String(value));
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [open]);
+
+  // Auto-focus search input when opening
+  useEffect(() => {
+    if (open && inputRef.current) {
+      inputRef.current.focus();
+    }
+    if (!open) {
+      setSearch('');
+    }
+  }, [open]);
+
+  const filtered = options.filter(opt => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase().trim();
+    return (
+      (opt.title && opt.title.toLowerCase().includes(q)) ||
+      (opt.subtitle && opt.subtitle.toLowerCase().includes(q)) ||
+      (opt.badge && opt.badge.toLowerCase().includes(q))
+    );
+  });
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      {/* Trigger button */}
+      <div
+        onClick={() => setOpen(prev => !prev)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'var(--bg-card)',
+          border: open ? '1px solid var(--primary)' : '1px solid var(--border)',
+          borderRadius: 6,
+          padding: '4px 8px',
+          cursor: 'pointer',
+          minHeight: 32,
+          fontSize: 12,
+          userSelect: 'none',
+          boxShadow: open ? '0 0 0 2px rgba(99, 102, 241, 0.2)' : 'none',
+          transition: 'border-color 0.15s, box-shadow 0.15s'
+        }}
+        title={selectedOption ? `${selectedOption.title}${selectedOption.badge ? ` (${selectedOption.badge})` : ''}` : placeholder}
+      >
+        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 4 }}>
+          {selectedOption ? (
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+              {selectedOption.title}
+              {selectedOption.badge && (
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4, fontWeight: 400 }}>
+                  ({selectedOption.badge})
+                </span>
+              )}
+            </span>
+          ) : (
+            <span style={{ color: 'var(--text-muted)' }}>{placeholder}</span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          {selectedOption && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange(null);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: 2,
+                display: 'flex',
+                alignItems: 'center',
+                borderRadius: 4
+              }}
+              title="Clear selection"
+            >
+              <X size={12} />
+            </button>
+          )}
+          <ChevronDown
+            size={13}
+            style={{
+              color: 'var(--text-muted)',
+              transform: open ? 'rotate(180deg)' : 'none',
+              transition: 'transform 0.15s'
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Dropdown Popover */}
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+            zIndex: 100,
+            minWidth: 260,
+            maxHeight: 280,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}
+        >
+          {/* Search Box Header */}
+          <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+            <div style={{ position: 'relative' }}>
+              <Search
+                size={12}
+                style={{
+                  position: 'absolute',
+                  left: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-muted)',
+                  pointerEvents: 'none'
+                }}
+              />
+              <input
+                ref={inputRef}
+                type="text"
+                className="form-input form-input-sm"
+                placeholder={searchPlaceholder}
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') setOpen(false);
+                }}
+                style={{ paddingLeft: 26, paddingRight: 8, height: 28, fontSize: 11, width: '100%' }}
+              />
+            </div>
+          </div>
+
+          {/* Options List */}
+          <div style={{ overflowY: 'auto', flex: 1, maxHeight: 220, padding: 4 }}>
+            {/* Unassign option */}
+            <div
+              onClick={() => {
+                onChange(null);
+                setOpen(false);
+              }}
+              style={{
+                padding: '6px 8px',
+                borderRadius: 4,
+                cursor: 'pointer',
+                fontSize: 11,
+                color: !value ? 'var(--primary)' : 'var(--text-muted)',
+                background: !value ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                fontWeight: !value ? 600 : 400,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 2
+              }}
+            >
+              <span>{emptyLabel}</span>
+              {!value && <CheckCircle2 size={12} style={{ color: 'var(--primary)' }} />}
+            </div>
+
+            {filtered.length === 0 ? (
+              <div style={{ padding: '12px 8px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
+                No matches found for "{search}"
+              </div>
+            ) : (
+              filtered.map(opt => {
+                const isSelected = String(opt.id) === String(value);
+                return (
+                  <div
+                    key={opt.id}
+                    onClick={() => {
+                      onChange(opt.id);
+                      setOpen(false);
+                    }}
+                    style={{
+                      padding: '6px 8px',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      background: isSelected ? 'rgba(99, 102, 241, 0.12)' : 'transparent',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'background 0.1s'
+                    }}
+                    onMouseEnter={e => {
+                      if (!isSelected) e.currentTarget.style.background = 'var(--bg-card)';
+                    }}
+                    onMouseLeave={e => {
+                      if (!isSelected) e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ fontWeight: isSelected ? 700 : 500, color: 'var(--text-primary)' }}>
+                        {opt.title}
+                      </div>
+                      {(opt.subtitle || opt.badge) && (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                          {opt.badge ? `${opt.badge}` : ''}
+                          {opt.badge && opt.subtitle ? ' • ' : ''}
+                          {opt.subtitle || ''}
+                        </div>
+                      )}
+                    </div>
+                    {isSelected && <CheckCircle2 size={12} style={{ color: 'var(--primary)', flexShrink: 0, marginLeft: 6 }} />}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CoursesPage() {
   const { activeTerm, activeTermObj } = useAcademicTerm();
@@ -43,6 +294,7 @@ export default function CoursesPage() {
   // Filters & State
   const [selectedClassId, setSelectedClassId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [teacherSearch, setTeacherSearch] = useState('');
   const [expanded, setExpanded] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -53,6 +305,7 @@ export default function CoursesPage() {
   const [masterModal, setMasterModal] = useState(null); // 'add' | course object for catalog
   const [offeringModal, setOfferingModal] = useState(false); // Modal to assign catalog courses to selected batch
   const [selectedCatalogCourseIds, setSelectedCatalogCourseIds] = useState([]);
+  const [offeringSearch, setOfferingSearch] = useState('');
 
   const [form, setForm] = useState({
     name: '',
@@ -127,8 +380,8 @@ export default function CoursesPage() {
     loadAll(true);
   }, [activeTerm]);
 
-  const toggle = (id) => {
-    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggle = (id, defaultOpen = false) => {
+    setExpanded(prev => ({ ...prev, [id]: prev[id] !== undefined ? !prev[id] : !defaultOpen }));
   };
 
   const setFeedback = (key, status) => {
@@ -427,6 +680,33 @@ export default function CoursesPage() {
     (c.short_name && c.short_name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  // Filter faculty / teachers by keyword search
+  const filteredTeachers = teachers.filter(t => {
+    if (!teacherSearch.trim()) return true;
+    const q = teacherSearch.toLowerCase().trim();
+    return (
+      (t.name && t.name.toLowerCase().includes(q)) ||
+      (t.designation && t.designation.toLowerCase().includes(q)) ||
+      (t.department_name && t.department_name.toLowerCase().includes(q))
+    );
+  });
+
+  const teacherOptions = teachers.map(t => ({
+    id: t.id,
+    title: t.name,
+    badge: hasEmbeddedDesignation(t.name) ? '' : (t.designation || 'Faculty'),
+    subtitle: t.department_name || ''
+  }));
+
+  const scholarOptions = scholars.map(s => ({
+    id: s.id,
+    title: s.name,
+    badge: s.designation || (s.roll_no ? `Roll: ${s.roll_no}` : 'Scholar/TA'),
+    subtitle: s.department_name || (s.roll_no ? `Roll: ${s.roll_no}` : '')
+  }));
+
+
+
   return (
     <div className="fade-in">
       {/* ─── Page Header ────────────────────────────────────────────── */}
@@ -525,6 +805,7 @@ export default function CoursesPage() {
                       });
                     }
                     setSelectedCatalogCourseIds(Array.from(alreadyAssigned));
+                    setOfferingSearch('');
                     setOfferingModal(true);
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6 }}
@@ -535,14 +816,46 @@ export default function CoursesPage() {
             </div>
 
             {/* Courses Offered to this Batch */}
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '12px 18px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>
-                  Courses Offered to {activeClassObj?.name || 'Class'} in {activeTerm} ({classOfferings.length} courses)
-                </span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Assigned instructors will supervise timetable sessions for this batch
-                </span>
+            <div className="card" style={{ padding: 0, overflow: 'visible' }}>
+              <div style={{ padding: '12px 18px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)', borderTopLeftRadius: 'var(--radius)', borderTopRightRadius: 'var(--radius)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>
+                    Courses Offered to {activeClassObj?.name || 'Class'} in {activeTerm} ({classOfferings.length} courses)
+                  </span>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Assign faculty instructors and teaching assistants to supervise timetable sessions
+                  </div>
+                </div>
+
+                {/* Faculty keyword search input */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative', width: 260 }}>
+                    <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                    <input
+                      type="text"
+                      className="form-input form-input-sm"
+                      placeholder="Search faculty (e.g. Sandeep, Anita)..."
+                      value={teacherSearch}
+                      onChange={e => setTeacherSearch(e.target.value)}
+                      style={{ paddingLeft: 30, paddingRight: teacherSearch ? 26 : 10, height: 32, fontSize: 12 }}
+                    />
+                    {teacherSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setTeacherSearch('')}
+                        style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}
+                        title="Clear faculty search"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                  {teacherSearch && (
+                    <span className="badge badge-indigo" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+                      {filteredTeachers.length} / {teachers.length} faculty match
+                    </span>
+                  )}
+                </div>
               </div>
 
               {classOfferings.map(offering => {
@@ -550,6 +863,21 @@ export default function CoursesPage() {
                 const nameStr = offering.name;
                 const shortStr = offering.short_name || offering.code || '—';
                 const headerDisplay = `${codeStr}, ${nameStr}, (${shortStr})`;
+
+                const hasMatchingFaculty = Boolean(
+                  teacherSearch.trim() &&
+                  (offering.components || []).some(comp => {
+                    const matchIds = new Set(filteredTeachers.map(t => Number(t.id)));
+                    return assignments.some(
+                      a => Number(a.class_id) === Number(selectedClassId) &&
+                           Number(a.course_component_id) === Number(comp.id) &&
+                           matchIds.has(Number(a.teacher_id))
+                    );
+                  })
+                );
+                const isOpen = expanded[offering.offering_id] !== undefined
+                  ? Boolean(expanded[offering.offering_id])
+                  : hasMatchingFaculty;
 
                 return (
                   <div key={offering.offering_id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -559,13 +887,13 @@ export default function CoursesPage() {
                       style={{
                         padding: '12px 18px',
                         cursor: 'pointer',
-                        background: expanded[offering.offering_id] ? 'var(--bg-elevated)' : 'transparent',
+                        background: isOpen ? 'var(--bg-elevated)' : 'transparent',
                         transition: 'background 0.15s'
                       }}
-                      onClick={() => toggle(offering.offering_id)}
+                      onClick={() => toggle(offering.offering_id, hasMatchingFaculty)}
                     >
                       <div className="flex items-center gap-3">
-                        {expanded[offering.offering_id] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span>{headerDisplay}</span>
@@ -593,7 +921,7 @@ export default function CoursesPage() {
                     </div>
 
                     {/* Components & Allocation Table */}
-                    {expanded[offering.offering_id] && (
+                    {isOpen && (
                       <div style={{ background: 'var(--bg-elevated)', padding: '12px 18px 18px 36px', borderTop: '1px solid var(--border)' }}>
                         {(!offering.components || offering.components.length === 0) ? (
                           <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
@@ -707,22 +1035,20 @@ export default function CoursesPage() {
                                                 <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 500 }}>
                                                   Faculty / Teacher
                                                 </label>
-                                                <select
-                                                  className="form-select form-select-sm"
+                                                <SearchableSelect
                                                   value={asgn?.teacher_id || ''}
-                                                  onChange={e => handleAllocationChange(
+                                                  onChange={val => handleAllocationChange(
                                                     selectedClassId,
                                                     comp.id,
                                                     grp.id,
-                                                    e.target.value || null,
+                                                    val,
                                                     asgn?.scholar_id || null
                                                   )}
-                                                >
-                                                  <option value="">Unassigned (None)</option>
-                                                  {teachers.map(t => (
-                                                    <option key={t.id} value={t.id}>{t.name} ({t.designation || 'Faculty'})</option>
-                                                  ))}
-                                                </select>
+                                                  options={teacherOptions}
+                                                  placeholder="Search & assign faculty..."
+                                                  emptyLabel="Unassigned (None)"
+                                                  searchPlaceholder="Search faculty by name, dept, designation..."
+                                                />
                                               </div>
 
                                               {/* Scholar Selector */}
@@ -730,22 +1056,20 @@ export default function CoursesPage() {
                                                 <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 500 }}>
                                                   Research Scholar / TA
                                                 </label>
-                                                <select
-                                                  className="form-select form-select-sm"
+                                                <SearchableSelect
                                                   value={asgn?.scholar_id || ''}
-                                                  onChange={e => handleAllocationChange(
+                                                  onChange={val => handleAllocationChange(
                                                     selectedClassId,
                                                     comp.id,
                                                     grp.id,
                                                     asgn?.teacher_id || null,
-                                                    e.target.value || null
+                                                    val
                                                   )}
-                                                >
-                                                  <option value="">None (No Scholar)</option>
-                                                  {scholars.map(s => (
-                                                    <option key={s.id} value={s.id}>{s.name} {s.designation ? `(${s.designation})` : (s.roll_no ? `(${s.roll_no})` : '')}</option>
-                                                  ))}
-                                                </select>
+                                                  options={scholarOptions}
+                                                  placeholder="Search & assign scholar..."
+                                                  emptyLabel="None (No Scholar)"
+                                                  searchPlaceholder="Search scholar by name, designation, roll..."
+                                                />
                                               </div>
 
                                               {/* Feedback */}
@@ -799,22 +1123,20 @@ export default function CoursesPage() {
                                                 <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 500 }}>
                                                   Faculty / Teacher
                                                 </label>
-                                                <select
-                                                  className="form-select form-select-sm"
+                                                <SearchableSelect
                                                   value={asgn?.teacher_id || ''}
-                                                  onChange={e => handleAllocationChange(
+                                                  onChange={val => handleAllocationChange(
                                                     selectedClassId,
                                                     comp.id,
                                                     null,
-                                                    e.target.value || null,
+                                                    val,
                                                     asgn?.scholar_id || null
                                                   )}
-                                                >
-                                                  <option value="">Unassigned (None)</option>
-                                                  {teachers.map(t => (
-                                                    <option key={t.id} value={t.id}>{t.name} ({t.designation || 'Faculty'})</option>
-                                                  ))}
-                                                </select>
+                                                  options={teacherOptions}
+                                                  placeholder="Search & assign faculty..."
+                                                  emptyLabel="Unassigned (None)"
+                                                  searchPlaceholder="Search faculty by name, dept, designation..."
+                                                />
                                               </div>
 
                                               {/* Scholar Selector */}
@@ -822,22 +1144,20 @@ export default function CoursesPage() {
                                                 <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 500 }}>
                                                   Research Scholar / TA
                                                 </label>
-                                                <select
-                                                  className="form-select form-select-sm"
+                                                <SearchableSelect
                                                   value={asgn?.scholar_id || ''}
-                                                  onChange={e => handleAllocationChange(
+                                                  onChange={val => handleAllocationChange(
                                                     selectedClassId,
                                                     comp.id,
                                                     null,
                                                     asgn?.teacher_id || null,
-                                                    e.target.value || null
+                                                    val
                                                   )}
-                                                >
-                                                  <option value="">None (No Scholar)</option>
-                                                  {scholars.map(s => (
-                                                    <option key={s.id} value={s.id}>{s.name} {s.designation ? `(${s.designation})` : (s.roll_no ? `(${s.roll_no})` : '')}</option>
-                                                  ))}
-                                                </select>
+                                                  options={scholarOptions}
+                                                  placeholder="Search & assign scholar..."
+                                                  emptyLabel="None (No Scholar)"
+                                                  searchPlaceholder="Search scholar by name, designation, roll..."
+                                                />
                                               </div>
 
                                               {/* Feedback */}
@@ -1036,12 +1356,43 @@ export default function CoursesPage() {
 
             <form onSubmit={handleAssignCoursesToBatch}>
               <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
                   Select the courses from the master catalog that {activeClassObj?.name} is taking this semester:
                 </p>
 
+                {/* Keyword search in course assignment modal */}
+                <div style={{ position: 'relative', marginBottom: 10 }}>
+                  <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    className="form-input form-input-sm"
+                    placeholder="Search courses by code, title, short name..."
+                    value={offeringSearch}
+                    onChange={e => setOfferingSearch(e.target.value)}
+                    style={{ paddingLeft: 28, paddingRight: offeringSearch ? 26 : 10, height: 30, fontSize: 12 }}
+                  />
+                  {offeringSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setOfferingSearch('')}
+                      style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {catalogCourses
+                    .filter(c => {
+                      if (!offeringSearch.trim()) return true;
+                      const q = offeringSearch.toLowerCase().trim();
+                      return (
+                        (c.name && c.name.toLowerCase().includes(q)) ||
+                        (c.code && c.code.toLowerCase().includes(q)) ||
+                        (c.short_name && c.short_name.toLowerCase().includes(q))
+                      );
+                    })
                     .sort((a, b) => {
                       // Sort by semester match first, then by name
                       const aMatch = a.semester == currentSemesterNum ? -1 : 1;

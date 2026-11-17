@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { useAcademicTerm } from '../context/AcademicTermContext';
 import { useAuth } from '../context/AuthContext';
-import { X, Plus, AlertCircle, CheckCircle, GraduationCap, Users, DoorOpen, RefreshCw, UserCheck, Printer } from 'lucide-react';
+import { X, Plus, AlertCircle, CheckCircle, GraduationCap, Users, DoorOpen, RefreshCw, UserCheck, Printer, Search } from 'lucide-react';
+import { getFirstName, formatTeacherLabel, formatTeacherWithDesignation } from '../utils/nameFormat';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_LABELS = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
@@ -208,6 +209,7 @@ export default function TimetablePage() {
 
   const [modal, setModal]                   = useState(null); // { day, period, slot, editEntry? }
   const [form, setForm]                     = useState({ course_component_id: '', teacher_id: '', room_id: '', group_id: '' });
+  const [roomSearch, setRoomSearch]         = useState('');
   const [assignments, setAssignments]       = useState([]);
   const [groups, setGroups]                 = useState([]);
   const [submitting, setSubmitting]         = useState(false);
@@ -415,6 +417,7 @@ export default function TimetablePage() {
     const slot = slotMap[`${day}-${period}`];
     setModal({ day, period, slot, editEntry: null });
     setForm({ course_component_id: '', teacher_id: '', room_id: '', group_id: '' });
+    setRoomSearch('');
     setError(''); setSuccess('');
   }
 
@@ -428,6 +431,7 @@ export default function TimetablePage() {
       room_id: entry.room_id.toString(),
       group_id: entry.group_id ? entry.group_id.toString() : '',
     });
+    setRoomSearch('');
     setError(''); setSuccess('');
   }
 
@@ -621,7 +625,7 @@ export default function TimetablePage() {
               onChange={e => setSelectedTeacher(e.target.value)}
             >
               <option value="">Select Teacher</option>
-              {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.designation || 'Faculty'})</option>)}
+              {teachers.map(t => <option key={t.id} value={t.id}>{formatTeacherLabel(t)}</option>)}
             </select>
           )}
 
@@ -875,7 +879,7 @@ export default function TimetablePage() {
                                       key={entry.id}
                                       className={`tt-entry ${entryColor(entry.course_component_id)}`}
                                       onClick={(e) => { e.stopPropagation(); openEdit(entry); }}
-                                      title={`${entry.course_code ? `[${entry.course_code}] ` : ''}${entry.course_name}${entry.course_short_name && entry.course_short_name !== entry.course_code ? ` (${entry.course_short_name})` : ''} · ${entry.component_type.toUpperCase()}${entry.group_name ? ` · ${entry.group_name}` : ''} · ${entry.teacher_name ? `Faculty: ${entry.teacher_name}` : 'Unassigned'}${entry.scholar_name ? ` · TA: ${entry.scholar_name}` : ''} · ${entry.room_name}${dur > 1 ? ` · ${dur}h session (P${period}–P${period + dur - 1})` : ''}`}
+                                      title={`${entry.course_code ? `[${entry.course_code}] ` : ''}${entry.course_name}${entry.course_short_name && entry.course_short_name !== entry.course_code ? ` (${entry.course_short_name})` : ''} · ${entry.component_type.toUpperCase()}${entry.group_name ? ` · ${entry.group_name}` : ''} · ${entry.teacher_name ? `Faculty: ${formatTeacherWithDesignation(entry.teacher_name, entry.designation)}` : 'Unassigned'}${entry.scholar_name ? ` · TA: ${entry.scholar_name}${entry.scholar_designation ? ` (${entry.scholar_designation})` : ''}` : ''} · ${entry.room_name}${dur > 1 ? ` · ${dur}h session (P${period}–P${period + dur - 1})` : ''}`}
                                     >
                                       {isAdmin && viewMode === 'class' && (
                                         <button
@@ -921,10 +925,10 @@ export default function TimetablePage() {
                                       <div className="tt-entry-secondary">
                                         {viewMode === 'class' && (
                                           <>
-                                            <span>
+                                            <span title={entry.teacher_name ? formatTeacherWithDesignation(entry.teacher_name, entry.designation) : (entry.scholar_name ? `TA: ${entry.scholar_name}` : '')}>
                                               {entry.teacher_name
-                                                ? entry.teacher_name.trim().split(' ').slice(-1)[0]
-                                                : (entry.scholar_name ? `TA ${entry.scholar_name.trim().split(' ').slice(-1)[0]}` : 'No Faculty')}
+                                                ? getFirstName(entry.teacher_name)
+                                                : (entry.scholar_name ? `TA ${getFirstName(entry.scholar_name)}` : 'No Faculty')}
                                               {entry.scholar_name && entry.teacher_name ? ` + TA` : ''}
                                             </span>
                                             <span style={{ opacity: 0.6, margin: '0 3px' }}>•</span>
@@ -949,7 +953,11 @@ export default function TimetablePage() {
                                           <>
                                             <span>{entry.class_name} {entry.group_name ? `(${entry.group_name})` : ''}</span>
                                             <span style={{ opacity: 0.6, margin: '0 3px' }}>•</span>
-                                            <span>{entry.teacher_name ? entry.teacher_name.trim().split(' ').slice(-1)[0] : (entry.scholar_name ? `TA ${entry.scholar_name.trim().split(' ').slice(-1)[0]}` : '')}</span>
+                                            <span title={entry.teacher_name ? formatTeacherWithDesignation(entry.teacher_name, entry.designation) : (entry.scholar_name ? `TA: ${entry.scholar_name}` : '')}>
+                                              {entry.teacher_name
+                                                ? getFirstName(entry.teacher_name)
+                                                : (entry.scholar_name ? `TA ${getFirstName(entry.scholar_name)}` : '')}
+                                            </span>
                                           </>
                                         )}
                                       </div>
@@ -1301,37 +1309,135 @@ export default function TimetablePage() {
                       const isAssigned = assignedTeachers.includes(t.id);
                       return (
                         <option key={t.id} value={t.id}>
-                          {t.name} {isAssigned ? '★ (Assigned)' : ''} ({t.designation || 'Faculty'})
+                          {formatTeacherLabel(t)} {isAssigned ? '★ (Assigned)' : ''}
                         </option>
                       );
                     })}
                   </select>
                 </div>
 
-                {/* Room Selection */}
-                <div className="form-group">
-                  <label className="form-label">
-                    Room
-                    {selectedComp?.requires_lab && (
-                      <span style={{ color: 'var(--amber)', fontSize: 11, marginLeft: 8 }}>
-                        (Please pick a Lab room)
-                      </span>
-                    )}
-                  </label>
-                  <select
-                    className="form-select"
-                    value={form.room_id}
-                    onChange={e => { setForm(f => ({ ...f, room_id: e.target.value })); setError(''); }}
-                    required
-                  >
-                    <option value="">Select room</option>
-                    {rooms.map(r => (
-                      <option key={r.id} value={r.id}>
-                        {r.type === 'lab' ? '🔬' : '🚪'} {r.name} ({r.type.toUpperCase()} · cap: {r.capacity})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Room Selection with Keyword Search */}
+                {(() => {
+                  const filteredRooms = rooms.filter(r => {
+                    if (!roomSearch.trim()) return true;
+                    const q = roomSearch.toLowerCase().trim();
+                    return (
+                      (r.name && r.name.toLowerCase().includes(q)) ||
+                      (r.type && r.type.toLowerCase().includes(q)) ||
+                      (r.location && r.location.toLowerCase().includes(q)) ||
+                      (r.capacity && String(r.capacity).includes(q))
+                    );
+                  });
+
+                  return (
+                    <div className="form-group">
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <label className="form-label" style={{ marginBottom: 0 }}>
+                          Room *
+                          {selectedComp?.requires_lab && (
+                            <span style={{ color: 'var(--amber)', fontSize: 11, marginLeft: 8 }}>
+                              (Please pick a Lab room)
+                            </span>
+                          )}
+                        </label>
+                        {roomSearch && (
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            {filteredRooms.length} room{filteredRooms.length === 1 ? '' : 's'} matching
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Keyword search input */}
+                      <div style={{ position: 'relative', marginBottom: 6 }}>
+                        <Search
+                          size={13}
+                          style={{
+                            position: 'absolute',
+                            left: 10,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: 'var(--text-muted)',
+                            pointerEvents: 'none'
+                          }}
+                        />
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Search room (e.g. L21, 306, Lab, NAB)..."
+                          value={roomSearch}
+                          onChange={e => setRoomSearch(e.target.value)}
+                          style={{ paddingLeft: 28, paddingRight: roomSearch ? 26 : 10, fontSize: 12, height: 30 }}
+                        />
+                        {roomSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setRoomSearch('')}
+                            style={{
+                              position: 'absolute',
+                              right: 6,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--text-muted)',
+                              cursor: 'pointer',
+                              padding: 2,
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                            title="Clear search"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+
+                      <select
+                        className="form-select"
+                        value={form.room_id}
+                        onChange={e => { setForm(f => ({ ...f, room_id: e.target.value })); setError(''); }}
+                        required
+                      >
+                        <option value="">{filteredRooms.length === 0 ? 'No matching rooms found' : 'Select room...'}</option>
+                        {form.room_id && !filteredRooms.some(r => r.id === parseInt(form.room_id)) && (() => {
+                          const cur = rooms.find(r => r.id === parseInt(form.room_id));
+                          return cur ? (
+                            <option key={cur.id} value={cur.id}>
+                              {cur.type === 'lab' ? '🔬' : '🚪'} {cur.name} ({cur.type.toUpperCase()} · cap: {cur.capacity}) [Current]
+                            </option>
+                          ) : null;
+                        })()}
+                        {filteredRooms.map(r => (
+                          <option key={r.id} value={r.id}>
+                            {r.type === 'lab' ? '🔬' : '🚪'} {r.name} ({r.type.toUpperCase()}{r.location ? ` · ${r.location}` : ''} · cap: {r.capacity})
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Quick selection chips if 1-6 rooms match */}
+                      {roomSearch && filteredRooms.length > 0 && filteredRooms.length <= 6 && (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                          {filteredRooms.map(r => (
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={() => { setForm(f => ({ ...f, room_id: r.id.toString() })); setError(''); }}
+                              className={`badge ${form.room_id === r.id.toString() ? 'badge-indigo' : 'badge-gray'}`}
+                              style={{
+                                cursor: 'pointer',
+                                border: form.room_id === r.id.toString() ? '1px solid var(--primary)' : '1px solid var(--border)',
+                                fontSize: 11,
+                                padding: '3px 8px'
+                              }}
+                            >
+                              {r.type === 'lab' ? '🔬' : '🚪'} {r.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setModal(null)}>Cancel</button>
