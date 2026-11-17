@@ -475,6 +475,7 @@ td { padding: 11px 14px; color: var(--text-primary); vertical-align: middle; }
   border-collapse: collapse;
   table-layout: auto;
   font-size: 12px;
+  border: 1px solid #000000;
 }
 .timetable-table th {
   position: sticky;
@@ -486,10 +487,11 @@ td { padding: 11px 14px; color: var(--text-primary); vertical-align: middle; }
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
-  border: 1px solid var(--border);
+  border: 1px solid #000000 !important;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
+.timetable-table th.tt-day-th,
 .timetable-table th:first-child {
   text-align: center;
   width: 60px;
@@ -501,27 +503,74 @@ td { padding: 11px 14px; color: var(--text-primary); vertical-align: middle; }
   left: 0;
   z-index: 25;
   background: var(--bg-elevated);
+  border: 1px solid #000000 !important;
+}
+.timetable-table th.tt-period-th {
+  min-width: 105px;
+  max-width: 135px;
 }
 .timetable-table td.tt-day-cell {
   position: sticky;
   left: 0;
   z-index: 10;
   background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  border: 1px solid #000000 !important;
   width: 60px;
   min-width: 60px;
   max-width: 60px;
   text-align: center;
   padding: 2px 4px;
+  vertical-align: middle;
+}
+.timetable-table tr.tt-lane-row td.tt-table-td {
+  border-top: 1px solid #000000;
+  border-bottom: 1px solid #000000;
+}
+.timetable-table tr.tt-day-first-lane td.tt-table-td {
+  border-top: 1px solid #000000 !important;
+}
+/* Divider between 2 days: dark black border */
+.timetable-table tbody tr.tt-day-first-lane:not(:first-child) td.tt-table-td,
+.timetable-table tbody tr.tt-day-first-lane:not(:first-child) td.tt-day-cell {
+  border-top: 1px solid #000000 !important;
+}
+.timetable-table tr.tt-day-last-lane td.tt-table-td,
+.timetable-table td.tt-day-bottom-border {
+  border-bottom: 1px solid #000000 !important;
+}
+.timetable-table td.tt-lane-spacer {
+  background: transparent !important;
+  border: none !important;
+  border-top: none !important;
+  border-bottom: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  pointer-events: none !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  height: 0 !important;
+  visibility: hidden !important;
+}
+.timetable-table tr.tt-day-last-lane td.tt-lane-spacer,
+.timetable-table td.tt-lane-spacer.tt-day-bottom-border {
+  border-bottom: 1px solid #000000 !important;
+  visibility: visible !important;
 }
 .timetable-table td.tt-table-td {
-  border: 1px solid var(--border);
+  border: 1px solid #000000;
   padding: 2px 3px;
   vertical-align: top;
   position: relative;
   min-width: 105px;
   min-height: 38px;
   box-sizing: border-box;
+}
+.timetable-table td.tt-span-td {
+  background: transparent;
+}
+.tt-multihour-entry {
+  min-height: 36px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 .timetable-table td.tt-empty-td {
   cursor: pointer;
@@ -908,44 +957,128 @@ input:focus, select:focus, textarea:focus {
 
 
 
+/* Print-only header */
+.print-only-header {
+  display: none;
+}
+
 /* ==========================================================================
    Print / PDF Export Styles
    ========================================================================== */
+.html2pdf__overlay {
+  overflow: visible !important;
+}
+.html2pdf__container {
+  width: max-content !important;
+  min-width: 100% !important;
+  max-width: none !important;
+  overflow: visible !important;
+  left: 0 !important;
+  right: auto !important;
+  margin: 0 !important;
+}
+
 @media print {
   @page {
     size: landscape;
-    margin: 8mm;
+    margin: 5mm;
   }
   body, .app-layout, .main-content {
     background: white !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  .sidebar, .page-header, .sidebar-open-button, .sidebar-toggle, .btn {
+  .sidebar, .page-header, .sidebar-open-button, .sidebar-toggle, .btn, .tt-cell-add, .delete-btn {
     display: none !important;
+  }
+  .print-only-header {
+    display: block !important;
+    margin-bottom: 6px !important;
+    padding-bottom: 3px !important;
+    border-bottom: 2px solid #000000 !important;
+  }
+  .print-header-main {
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    color: #000000 !important;
+    margin-bottom: 2px !important;
+  }
+  .print-header-sub {
+    font-size: 9.5px !important;
+    color: #333333 !important;
+    font-weight: 500 !important;
   }
   .main-content {
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
+    max-width: 100% !important;
   }
-  .card {
+  .card, .timetable-grid-card {
     box-shadow: none !important;
     border: none !important;
     padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+  .timetable-horizontal-scroll {
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
   .timetable-table {
-    border: 1px solid #ccc;
-    font-size: 11px !important;
+    border: 1px solid #000000 !important;
+    font-size: 8pt !important;
     width: 100% !important;
-    table-layout: fixed;
+    min-width: 0 !important;
+    table-layout: fixed !important;
   }
   .timetable-table th, .timetable-table td {
-    border: 1px solid #e2e8f0 !important;
+    border: 1px solid #000000 !important;
+    position: static !important;
+  }
+  .timetable-table th.tt-day-th,
+  .timetable-table th:first-child,
+  .timetable-table td.tt-day-cell {
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    text-align: center !important;
+    font-size: 8.5pt !important;
+    padding: 2px 1px !important;
+    position: static !important;
+  }
+  .timetable-table th.tt-period-th,
+  .timetable-table td.tt-table-td {
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 2px 2px !important;
+  }
+  .timetable-table tr.tt-lane-row td.tt-table-td {
+    border-top: 1px solid #000000 !important;
+    border-bottom: 1px solid #000000 !important;
+  }
+  .timetable-table tr.tt-day-first-lane td.tt-table-td {
+    border-top: 1px solid #000000 !important;
+  }
+  .timetable-table tr.tt-day-last-lane td.tt-table-td,
+  .timetable-table td.tt-day-bottom-border {
+    border-bottom: 1px solid #000000 !important;
+  }
+  .tt-period-label .period-time {
+    font-size: 6.8pt !important;
+    font-weight: 700 !important;
   }
   .tt-entry {
-    border: 1px solid #cbd5e1 !important;
+    border: 1px solid #000000 !important;
     box-shadow: none !important;
+    padding: 1.5px 2px !important;
+    font-size: 7.2pt !important;
+    margin-bottom: 1.5px !important;
   }
   .stats-grid, .avail-grid {
     display: none !important;

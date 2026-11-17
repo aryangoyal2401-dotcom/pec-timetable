@@ -213,6 +213,7 @@ export default function TimetablePage() {
   const [assignments, setAssignments]       = useState([]);
   const [groups, setGroups]                 = useState([]);
   const [submitting, setSubmitting]         = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [error, setError]                   = useState('');
   const [success, setSuccess]               = useState('');
 
@@ -426,9 +427,9 @@ export default function TimetablePage() {
     const slot = slotMap[`${entry.day}-${entry.period}`];
     setModal({ day: entry.day, period: entry.period, slot, editEntry: entry });
     setForm({
-      course_component_id: entry.course_component_id.toString(),
-      teacher_id: entry.teacher_id.toString(),
-      room_id: entry.room_id.toString(),
+      course_component_id: entry.course_component_id != null ? entry.course_component_id.toString() : '',
+      teacher_id: entry.teacher_id != null ? entry.teacher_id.toString() : '',
+      room_id: entry.room_id != null ? entry.room_id.toString() : '',
       group_id: entry.group_id ? entry.group_id.toString() : '',
     });
     setRoomSearch('');
@@ -498,6 +499,147 @@ export default function TimetablePage() {
     await refreshEntries();
   }
 
+  async function handleDownloadPdf() {
+    const area = document.getElementById('timetable-printable-area');
+    if (!area) {
+      window.print();
+      return;
+    }
+
+    if (typeof window.html2pdf === 'undefined') {
+      window.print();
+      return;
+    }
+
+    setDownloadingPdf(true);
+    try {
+      const batchName = viewMode === 'class'
+        ? (classes.find(c => String(c.id) === String(selectedClass))?.name || 'Class')
+        : viewMode === 'teacher'
+        ? (teachers.find(t => String(t.id) === String(selectedTeacher))?.name || 'Teacher')
+        : viewMode === 'scholar'
+        ? (scholars.find(s => String(s.id) === String(selectedScholar))?.name || 'Scholar')
+        : (rooms.find(r => String(r.id) === String(selectedRoom))?.name || 'Room');
+
+      const safeFileName = `${batchName.replace(/[^a-zA-Z0-9_-]/g, '_')}_Timetable_${activeTerm}.pdf`;
+
+      const numPeriods = Math.max(periods.length, 1);
+      // Sizing each period dynamically so all periods (P1 through P14 or whatever exist) fit completely
+      const colWidth = 115;
+      const dayColWidth = 55;
+      const paddingBuffer = 24;
+      const targetWidth = dayColWidth + (numPeriods * colWidth) + paddingBuffer;
+
+      const opt = {
+        margin:       [5, 5, 5, 5],
+        filename:     safeFileName,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          width: targetWidth,
+          windowWidth: targetWidth + 100,
+          scrollX: 0,
+          scrollY: 0,
+          onclone: (clonedDoc) => {
+            clonedDoc.body.style.width = `${targetWidth + 100}px`;
+            clonedDoc.body.style.minWidth = `${targetWidth + 100}px`;
+            clonedDoc.body.style.overflow = 'visible';
+
+            // Ensure the html2pdf overlay and container do not clip or constrain width
+            clonedDoc.querySelectorAll('.html2pdf__overlay').forEach(o => {
+              o.style.overflow = 'visible';
+              o.style.width = '100%';
+            });
+            clonedDoc.querySelectorAll('.html2pdf__container').forEach(c => {
+              c.style.setProperty('width', `${targetWidth}px`, 'important');
+              c.style.setProperty('min-width', `${targetWidth}px`, 'important');
+              c.style.setProperty('max-width', 'none', 'important');
+              c.style.overflow = 'visible';
+              c.style.margin = '0';
+              c.style.left = '0';
+            });
+
+            const clonedArea = clonedDoc.getElementById('timetable-printable-area');
+            if (clonedArea) {
+              clonedArea.style.setProperty('width', `${targetWidth}px`, 'important');
+              clonedArea.style.setProperty('min-width', `${targetWidth}px`, 'important');
+              clonedArea.style.setProperty('max-width', 'none', 'important');
+              clonedArea.style.overflow = 'visible';
+              clonedArea.style.background = '#ffffff';
+              clonedArea.style.padding = '8px 12px';
+              clonedArea.style.boxSizing = 'border-box';
+
+              // Unconstrain all parent containers
+              let parent = clonedArea.parentElement;
+              while (parent && parent !== clonedDoc.body) {
+                parent.style.overflow = 'visible';
+                parent.style.width = `${targetWidth}px`;
+                parent.style.maxWidth = 'none';
+                parent = parent.parentElement;
+              }
+
+              const header = clonedArea.querySelector('.print-only-header');
+              if (header) {
+                header.style.display = 'block';
+                header.style.marginBottom = '8px';
+              }
+
+              const scrollWrapper = clonedArea.querySelector('.timetable-horizontal-scroll');
+              if (scrollWrapper) {
+                scrollWrapper.style.overflow = 'visible';
+                scrollWrapper.style.width = '100%';
+                scrollWrapper.style.maxWidth = 'none';
+              }
+
+              const table = clonedArea.querySelector('.timetable-table');
+              if (table) {
+                table.style.setProperty('width', '100%', 'important');
+                table.style.setProperty('min-width', '100%', 'important');
+                table.style.setProperty('max-width', 'none', 'important');
+                table.style.tableLayout = 'fixed';
+                table.style.border = '1px solid #000000';
+              }
+
+              // Set explicit column widths on table headers to distribute all periods evenly
+              const dayTh = clonedArea.querySelector('.timetable-table th.tt-day-th');
+              if (dayTh) {
+                dayTh.style.width = `${dayColWidth}px`;
+                dayTh.style.minWidth = `${dayColWidth}px`;
+                dayTh.style.maxWidth = `${dayColWidth}px`;
+              }
+
+              const periodThs = clonedArea.querySelectorAll('.timetable-table th.tt-period-th');
+              periodThs.forEach(th => {
+                th.style.width = `${colWidth}px`;
+                th.style.minWidth = `${colWidth}px`;
+                th.style.maxWidth = `${colWidth}px`;
+              });
+
+              // Ensure sticky positioning is removed for html2canvas
+              clonedArea.querySelectorAll('.timetable-table th, .timetable-table td.tt-day-cell').forEach(el => {
+                el.style.position = 'static';
+              });
+
+              clonedArea.querySelectorAll('.tt-cell-add').forEach(el => el.style.display = 'none');
+              clonedArea.querySelectorAll('.delete-btn').forEach(el => el.style.display = 'none');
+            }
+          }
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+      };
+
+      await window.html2pdf().set(opt).from(area).save();
+    } catch (err) {
+      console.error('PDF auto-download failed, falling back to window.print():', err);
+      window.print();
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
   // Selected component in modal
   const selectedComp = form.course_component_id
     ? allComponents.find(c => c.id === parseInt(form.course_component_id))
@@ -529,6 +671,7 @@ export default function TimetablePage() {
 
   const activeDays = DAYS.filter(d => slots.some(s => s.day === d));
 
+  const currentClass   = classes.find(c => c.id === parseInt(selectedClass));
   const currentTeacher = teachers.find(t => t.id === parseInt(selectedTeacher));
   const currentScholar = scholars.find(s => s.id === parseInt(selectedScholar));
   const currentRoom    = rooms.find(r => r.id === parseInt(selectedRoom));
@@ -662,23 +805,24 @@ export default function TimetablePage() {
             <RefreshCw size={14} />
           </button>
 
-          {isAdmin && viewMode === 'class' && (
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={() => openAdd('Mon', 1)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <Plus size={14} /> Add Entry
-            </button>
-          )}
-
           <button
             className="btn btn-sm btn-secondary"
-            onClick={() => window.print()}
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            title="Export timetable as PDF"
+            title="Download full timetable as PDF"
           >
-            <Printer size={14} /> PDF
+            {downloadingPdf ? (
+              <>
+                <div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
+                <span>Exporting...</span>
+              </>
+            ) : (
+              <>
+                <Printer size={14} />
+                <span>PDF</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -810,16 +954,32 @@ export default function TimetablePage() {
           <div className="loading"><div className="spinner" /> Loading timetable...</div>
         ) : (
           /* ─── Timetable Grid ────────────────────────────────────────── */
-          <div className="card timetable-grid-card" style={{ padding: 0 }}>
+          <div id="timetable-printable-area" className="card timetable-grid-card" style={{ padding: 0 }}>
+            {/* Printable Header — shows the batch / entity name when printing or saving as PDF */}
+            <div className="print-only-header">
+              <div className="print-header-main">
+                {viewMode === 'class' && (currentClass ? `${currentClass.name} — Weekly Timetable` : 'Academic Timetable')}
+                {viewMode === 'teacher' && (currentTeacher ? `${formatTeacherLabel(currentTeacher)} — Weekly Schedule` : 'Faculty Schedule')}
+                {viewMode === 'scholar' && (currentScholar ? `${currentScholar.name} (TA) — Weekly Schedule` : 'Scholar Schedule')}
+                {viewMode === 'room' && (currentRoom ? `${currentRoom.name} (${currentRoom.type}) — Room Schedule` : 'Room Timetable')}
+              </div>
+              <div className="print-header-sub">
+                {viewMode === 'class' && currentClass && (
+                  <span>Batch: <strong>{currentClass.name}</strong> · </span>
+                )}
+                <span>Academic Term: <strong>{activeTerm}</strong></span>
+              </div>
+            </div>
+
             <div className="timetable-horizontal-scroll">
               <table className="timetable-table">
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 60, width: 60, textAlign: 'center' }}>Day</th>
+                    <th className="tt-day-th">Day</th>
                     {periods.map(period => {
                       const slot = slots.find(item => item.period === period);
                       return (
-                        <th key={period} style={{ minWidth: 105, maxWidth: 135 }}>
+                        <th key={period} className="tt-period-th">
                           <div>P{period}</div>
                           <div style={{ fontSize: 9.5, fontWeight: 500, color: 'var(--text-muted)' }}>
                             {formatTime(slot?.start_time)}–{formatTime(slot?.end_time)}
@@ -831,192 +991,383 @@ export default function TimetablePage() {
                 </thead>
                 <tbody>
                   {activeDays.map(day => {
-                    return (
-                      <tr key={day}>
-                        {/* Day Name Sticky Column */}
-                        <td className="tt-day-cell">
-                          <div className="tt-period-label">
-                            <span className="period-time">{day}</span>
-                          </div>
-                        </td>
+                    const dayEntries = entries.filter(e => e.day === day);
 
-                        {/* Every single Period column is always rendered */}
-                        {periods.map(period => {
-                          const cellKey = `${day}-${period}`;
-                          const slot = slotMap[cellKey];
-                          const startingEntries = entryMap[cellKey] || [];
-                          const continuingEntries = entries.filter(
-                            e => e.day === day && e.period < period && (e.period + (e.duration_hours || 1) - 1) >= period
-                          );
+                    // Sort entries: period ascending, duration descending, then id
+                    const sortedEntries = [...dayEntries].sort((a, b) => {
+                      if (a.period !== b.period) return a.period - b.period;
+                      const durA = a.duration_hours || 1;
+                      const durB = b.duration_hours || 1;
+                      if (durA !== durB) return durB - durA;
+                      return a.id - b.id;
+                    });
 
-                          if (!slot) {
-                            return (
+                    // Interval partitioning into non-overlapping tracks / lanes
+                    // Handles staggered sessions (e.g., 9-11 and 10-12) cleanly across full colSpan
+                    const lanes = [];
+                    for (const entry of sortedEntries) {
+                      const dur = entry.duration_hours || 1;
+                      const start = entry.period;
+                      const end = start + dur - 1;
+
+                      let placed = false;
+                      for (const lane of lanes) {
+                        const fits = lane.every(item => {
+                          const itemDur = item.duration_hours || 1;
+                          const itemStart = item.period;
+                          const itemEnd = itemStart + itemDur - 1;
+
+                          // Identical span: can share the multi-hour cell
+                          if (itemStart === start && itemDur === dur) return true;
+
+                          // Disjoint: item ends before start, or starts after end
+                          return itemEnd < start || itemStart > end;
+                        });
+
+                        if (fits) {
+                          lane.push(entry);
+                          placed = true;
+                          break;
+                        }
+                      }
+
+                      if (!placed) {
+                        lanes.push([entry]);
+                      }
+                    }
+
+                    // Phase 2: If multiple lanes exist for this day, balance multi-entry slots across available free lanes
+                    // e.g. on Wednesday at P2-P3, separate multiple entries into distinct lanes/slots
+                    if (lanes.length > 1) {
+                      for (let lIdx = 0; lIdx < lanes.length; lIdx++) {
+                        const lane = lanes[lIdx];
+                        // Group entries in this lane by period & duration
+                        const groups = {};
+                        lane.forEach(e => {
+                          const key = `${e.period}-${e.duration_hours || 1}`;
+                          if (!groups[key]) groups[key] = [];
+                          groups[key].push(e);
+                        });
+
+                        for (const key in groups) {
+                          const groupEntries = groups[key];
+                          if (groupEntries.length > 1) {
+                            const [pStr, dStr] = key.split('-');
+                            const p = parseInt(pStr);
+                            const dur = parseInt(dStr);
+                            const end = p + dur - 1;
+
+                            // Try to distribute surplus entries to other lanes that are completely free during [p, end]
+                            while (groupEntries.length > 1) {
+                              let moved = false;
+                              for (let targetIdx = 0; targetIdx < lanes.length; targetIdx++) {
+                                if (targetIdx === lIdx) continue;
+                                const targetLane = lanes[targetIdx];
+                                const targetFree = targetLane.every(item => {
+                                  const itemDur = item.duration_hours || 1;
+                                  const itemStart = item.period;
+                                  const itemEnd = itemStart + itemDur - 1;
+                                  return itemEnd < p || itemStart > end;
+                                });
+
+                                if (targetFree) {
+                                  const entryToMove = groupEntries.pop();
+                                  const removeIdx = lane.findIndex(e => e.id === entryToMove.id);
+                                  if (removeIdx !== -1) lane.splice(removeIdx, 1);
+                                  targetLane.push(entryToMove);
+                                  moved = true;
+                                  break;
+                                }
+                              }
+                              if (!moved) break;
+                            }
+                          }
+                        }
+                      }
+                    }
+
+                    const activeLanes = lanes.length > 0 ? lanes : [[]];
+                    const hasMultipleLanes = activeLanes.length > 1;
+
+                    // Helper: which lanes have active entries at period p
+                    const activeLaneIndicesAtPeriod = (p) => {
+                      const active = [];
+                      activeLanes.forEach((lane, idx) => {
+                        const has = lane.some(e => {
+                          const dur = e.duration_hours || 1;
+                          return e.period <= p && p < e.period + dur;
+                        });
+                        if (has) active.push(idx);
+                      });
+                      return active;
+                    };
+
+                    // Track which periods are already spanned (by horizontal colSpan or vertical rowSpan)
+                    const laneSkips = activeLanes.map(() => new Set());
+
+                    return activeLanes.map((lane, laneIdx) => {
+                      const isFirstLane = laneIdx === 0;
+                      const isLastLane = laneIdx === activeLanes.length - 1;
+
+                      const cells = [];
+
+                      for (let i = 0; i < periods.length; i++) {
+                        const period = periods[i];
+
+                        // If skipped in this lane, do not render a td
+                        if (laneSkips[laneIdx].has(period)) {
+                          continue;
+                        }
+
+                        const cellKey = `${day}-${period}`;
+                        const slot = slotMap[cellKey];
+
+                        // Check active lanes at this period
+                        const activeLaneIndices = activeLaneIndicesAtPeriod(period);
+
+                        // Case 1: Slot does not exist in master schedule for this day/period
+                        if (!slot) {
+                          if (isFirstLane) {
+                            cells.push(
                               <td
                                 key={period}
+                                rowSpan={activeLanes.length > 1 ? activeLanes.length : undefined}
+                                className={isLastLane || (activeLanes.length > 1 && isFirstLane) ? 'tt-day-bottom-border' : undefined}
                                 style={{ background: 'var(--bg-elevated)', opacity: 0.4 }}
                               />
                             );
+                            for (let l = 1; l < activeLanes.length; l++) {
+                              laneSkips[l].add(period);
+                            }
                           }
+                          continue;
+                        }
 
-                          const isEmpty = startingEntries.length === 0 && continuingEntries.length === 0;
+                        // Case 2: This period has NO entry anywhere on this day across ANY lane
+                        if (activeLaneIndices.length === 0) {
+                          if (isFirstLane) {
+                            cells.push(
+                              <td
+                                key={period}
+                                rowSpan={activeLanes.length > 1 ? activeLanes.length : undefined}
+                                className={`tt-table-td tt-empty-td ${isLastLane || (activeLanes.length > 1 && isFirstLane) ? 'tt-day-bottom-border' : ''}`}
+                                onClick={() => {
+                                  if (viewMode === 'class') {
+                                    openAdd(day, period);
+                                  }
+                                }}
+                              >
+                                {isAdmin && viewMode === 'class' && (
+                                  <div
+                                    className="tt-cell-add"
+                                    onClick={(e) => { e.stopPropagation(); openAdd(day, period); }}
+                                    title={`Add entry to ${day} P${period}`}
+                                  >
+                                    <Plus size={11} />
+                                  </div>
+                                )}
+                              </td>
+                            );
+                            for (let l = 1; l < activeLanes.length; l++) {
+                              laneSkips[l].add(period);
+                            }
+                          }
+                          continue;
+                        }
 
-                          return (
+                        // Case 3: Entries exist at this period
+                        const laneStarts = lane.filter(e => e.period === period);
+
+                        // If this lane has no entry starting at this period
+                        if (laneStarts.length === 0) {
+                          cells.push(
                             <td
                               key={period}
-                              className={`tt-table-td ${isEmpty ? 'tt-empty-td' : ''}`}
-                              onClick={() => {
-                                if (viewMode === 'class' && isEmpty) {
-                                  openAdd(day, period);
-                                }
-                              }}
-                            >
-                              <div className="tt-slot-entries">
-                                {/* Sessions starting in this period */}
-                                {startingEntries.map(entry => {
-                                  const dur = entry.duration_hours || 1;
-                                  return (
-                                    <div
-                                      key={entry.id}
-                                      className={`tt-entry ${entryColor(entry.course_component_id)}`}
-                                      onClick={(e) => { e.stopPropagation(); openEdit(entry); }}
-                                      title={`${entry.course_code ? `[${entry.course_code}] ` : ''}${entry.course_name}${entry.course_short_name && entry.course_short_name !== entry.course_code ? ` (${entry.course_short_name})` : ''} · ${entry.component_type.toUpperCase()}${entry.group_name ? ` · ${entry.group_name}` : ''} · ${entry.teacher_name ? `Faculty: ${formatTeacherWithDesignation(entry.teacher_name, entry.designation)}` : 'Unassigned'}${entry.scholar_name ? ` · TA: ${entry.scholar_name}${entry.scholar_designation ? ` (${entry.scholar_designation})` : ''}` : ''} · ${entry.room_name}${dur > 1 ? ` · ${dur}h session (P${period}–P${period + dur - 1})` : ''}`}
-                                    >
-                                      {isAdmin && viewMode === 'class' && (
-                                        <button
-                                          className="delete-btn"
-                                          onClick={ev => handleDelete(entry.id, ev)}
-                                          title="Delete entry"
-                                        >×</button>
-                                      )}
-
-                                      {/* Primary Line: Course Code, Shortform & Group */}
-                                      <div className="tt-entry-primary">
-                                        <span style={{ fontWeight: 700 }}>
-                                          {entry.course_code ? (
-                                            <>
-                                              <span>{entry.course_code}</span>
-                                              {entry.course_short_name && entry.course_short_name !== entry.course_code && (
-                                                <span style={{ opacity: 0.85, fontWeight: 600, marginLeft: 3 }}>
-                                                  ({entry.course_short_name})
-                                                </span>
-                                              )}
-                                            </>
-                                          ) : (
-                                            entry.course_short_name || entry.course_name
-                                          )}
-                                        </span>
-                                        {entry.group_name && (
-                                          <span className="tt-group-pill">
-                                            {entry.group_name}
-                                          </span>
-                                        )}
-                                        {dur > 1 && (
-                                          <span style={{
-                                            fontSize: 9, padding: '0 3px', borderRadius: 3,
-                                            background: 'rgba(0,0,0,0.3)', fontWeight: 600,
-                                            marginLeft: 'auto', whiteSpace: 'nowrap',
-                                          }}>
-                                            {dur}h (P{period}–P{period + dur - 1})
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      {/* Secondary Line: Teacher / Scholar & Room */}
-                                      <div className="tt-entry-secondary">
-                                        {viewMode === 'class' && (
-                                          <>
-                                            <span title={entry.teacher_name ? formatTeacherWithDesignation(entry.teacher_name, entry.designation) : (entry.scholar_name ? `TA: ${entry.scholar_name}` : '')}>
-                                              {entry.teacher_name
-                                                ? getFirstName(entry.teacher_name)
-                                                : (entry.scholar_name ? `TA ${getFirstName(entry.scholar_name)}` : 'No Faculty')}
-                                              {entry.scholar_name && entry.teacher_name ? ` + TA` : ''}
-                                            </span>
-                                            <span style={{ opacity: 0.6, margin: '0 3px' }}>•</span>
-                                            <span>{entry.room_name || 'No Room'}</span>
-                                          </>
-                                        )}
-                                        {viewMode === 'teacher' && (
-                                          <>
-                                            <span>{entry.class_name} {entry.group_name ? `(${entry.group_name})` : ''}</span>
-                                            <span style={{ opacity: 0.6, margin: '0 3px' }}>•</span>
-                                            <span>{entry.room_name}</span>
-                                          </>
-                                        )}
-                                        {viewMode === 'scholar' && (
-                                          <>
-                                            <span>{entry.class_name} {entry.group_name ? `(${entry.group_name})` : ''}</span>
-                                            <span style={{ opacity: 0.6, margin: '0 3px' }}>•</span>
-                                            <span>{entry.room_name}</span>
-                                          </>
-                                        )}
-                                        {viewMode === 'room' && (
-                                          <>
-                                            <span>{entry.class_name} {entry.group_name ? `(${entry.group_name})` : ''}</span>
-                                            <span style={{ opacity: 0.6, margin: '0 3px' }}>•</span>
-                                            <span title={entry.teacher_name ? formatTeacherWithDesignation(entry.teacher_name, entry.designation) : (entry.scholar_name ? `TA: ${entry.scholar_name}` : '')}>
-                                              {entry.teacher_name
-                                                ? getFirstName(entry.teacher_name)
-                                                : (entry.scholar_name ? `TA ${getFirstName(entry.scholar_name)}` : '')}
-                                            </span>
-                                          </>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-
-                                {/* Sessions continuing from an earlier period (stacked neatly below starting entries) */}
-                                {continuingEntries.map(entry => {
-                                  const dur = entry.duration_hours || 1;
-                                  return (
-                                    <div
-                                      key={`cont-${entry.id}`}
-                                      className={`tt-entry tt-entry-continuation ${entryColor(entry.course_component_id)}`}
-                                      onClick={(e) => { e.stopPropagation(); openEdit(entry); }}
-                                      title={`Continuing from P${entry.period} (${formatTime(entry.start_time)}): ${entry.course_code ? `[${entry.course_code}] ` : ''}${entry.course_name}${entry.course_short_name && entry.course_short_name !== entry.course_code ? ` (${entry.course_short_name})` : ''} ${entry.group_name ? `(${entry.group_name})` : ''}`}
-                                    >
-                                      <div className="tt-entry-primary" style={{ fontSize: 9.5, opacity: 0.9 }}>
-                                        <span style={{ fontWeight: 700 }}>
-                                          ↳ {entry.course_code ? (
-                                            <>
-                                              <span>{entry.course_code}</span>
-                                              {entry.course_short_name && entry.course_short_name !== entry.course_code && (
-                                                <span style={{ opacity: 0.85, fontWeight: 600, marginLeft: 3 }}>
-                                                  ({entry.course_short_name})
-                                                </span>
-                                              )}
-                                            </>
-                                          ) : (
-                                            entry.course_short_name || entry.course_name
-                                          )}
-                                        </span>
-                                        {entry.group_name && (
-                                          <span style={{ fontSize: 9, opacity: 0.85 }}>({entry.group_name})</span>
-                                        )}
-                                        <span style={{ fontSize: 8.5, opacity: 0.65, marginLeft: 'auto' }}>
-                                          cont. (P{entry.period}–P{entry.period + dur - 1})
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {/* Add Button */}
-                              {isAdmin && viewMode === 'class' && (
-                                <div
-                                  className="tt-cell-add"
-                                  onClick={(e) => { e.stopPropagation(); openAdd(day, period); }}
-                                  title={`Add entry to ${day} P${period}`}
-                                >
-                                  <Plus size={11} />
-                                </div>
-                              )}
-                            </td>
+                              className={`tt-table-td tt-lane-spacer ${isLastLane ? 'tt-day-bottom-border' : ''}`}
+                            />
                           );
-                        })}
-                      </tr>
-                    );
+                          continue;
+                        }
+
+                        const cellEntries = laneStarts;
+                        const dur = cellEntries[0].duration_hours || 1;
+
+                        // Determine horizontal colSpan across full duration
+                        const remaining = periods.slice(i);
+                        const colSpan = Math.min(dur, remaining.length);
+                        if (colSpan > 1) {
+                          for (let s = 1; s < colSpan; s++) {
+                            laneSkips[laneIdx].add(periods[i + s]);
+                          }
+                        }
+
+                        // Determine vertical rowSpan:
+                        // If ONLY this lane is active across all periods covered by this cell's colSpan,
+                        // it can safely take rowSpan={activeLanes.length} and eliminate all empty white space!
+                        let rowSpan = 1;
+                        if (activeLanes.length > 1 && laneIdx === 0) {
+                          let onlyThisLane = true;
+                          for (let s = 0; s < colSpan; s++) {
+                            const checkP = periods[i + s];
+                            const lanesAtP = activeLaneIndicesAtPeriod(checkP);
+                            if (lanesAtP.some(idx => idx !== 0)) {
+                              onlyThisLane = false;
+                              break;
+                            }
+                          }
+                          if (onlyThisLane) {
+                            rowSpan = activeLanes.length;
+                            for (let l = 1; l < activeLanes.length; l++) {
+                              for (let s = 0; s < colSpan; s++) {
+                                laneSkips[l].add(periods[i + s]);
+                              }
+                            }
+                          }
+                        }
+
+                        const reachesBottom = (laneIdx + rowSpan) >= activeLanes.length;
+                        cells.push(
+                          <td
+                            key={period}
+                            colSpan={colSpan > 1 ? colSpan : undefined}
+                            rowSpan={rowSpan > 1 ? rowSpan : undefined}
+                            className={`tt-table-td ${colSpan > 1 ? 'tt-span-td' : ''} ${reachesBottom ? 'tt-day-bottom-border' : ''}`}
+                          >
+                            <div className="tt-slot-entries">
+                              {cellEntries.map(entry => {
+                                const entryDur = entry.duration_hours || 1;
+                                return (
+                                  <div
+                                    key={entry.id}
+                                    className={`tt-entry ${entryColor(entry.course_component_id)} ${entryDur > 1 ? 'tt-multihour-entry' : ''}`}
+                                    onClick={(e) => { e.stopPropagation(); openEdit(entry); }}
+                                    title={`${entry.course_code ? `[${entry.course_code}] ` : ''}${entry.course_name}${entry.course_short_name && entry.course_short_name !== entry.course_code ? ` (${entry.course_short_name})` : ''} · ${entry.component_type.toUpperCase()}${entry.group_name ? ` · ${entry.group_name}` : ''} · ${entry.teacher_name ? `Faculty: ${formatTeacherWithDesignation(entry.teacher_name, entry.designation)}` : 'Unassigned'}${entry.scholar_name ? ` · TA: ${entry.scholar_name}${entry.scholar_designation ? ` (${entry.scholar_designation})` : ''}` : ''} · ${entry.room_name}${entryDur > 1 ? ` · ${entryDur}h session (P${entry.period}–P${entry.period + entryDur - 1})` : ''}`}
+                                  >
+                                    {isAdmin && viewMode === 'class' && (
+                                      <button
+                                        className="delete-btn"
+                                        onClick={ev => handleDelete(entry.id, ev)}
+                                        title="Delete entry"
+                                      >×</button>
+                                    )}
+
+                                    {/* Primary Line: Course Code, Shortform & Group */}
+                                    <div className="tt-entry-primary">
+                                      <span style={{ fontWeight: 700 }}>
+                                        {entry.course_code ? (
+                                          <>
+                                            <span>{entry.course_code}</span>
+                                            {entry.course_short_name && entry.course_short_name !== entry.course_code && (
+                                              <span style={{ opacity: 0.85, fontWeight: 600, marginLeft: 3 }}>
+                                                ({entry.course_short_name})
+                                              </span>
+                                            )}
+                                          </>
+                                        ) : (
+                                          entry.course_short_name || entry.course_name
+                                        )}
+                                      </span>
+                                      {entry.group_name && (
+                                        <span className="tt-group-pill">
+                                          {entry.group_name}
+                                        </span>
+                                      )}
+                                      {entryDur > 1 && (
+                                        <span style={{
+                                          fontSize: 9.5,
+                                          padding: '1px 6px',
+                                          borderRadius: 3,
+                                          background: 'rgba(0,0,0,0.25)',
+                                          fontWeight: 700,
+                                          marginLeft: 'auto',
+                                          whiteSpace: 'nowrap',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: 3
+                                        }}>
+                                          ⏱ {entryDur}h (P{entry.period}–P{entry.period + entryDur - 1})
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Secondary Line: Teacher / Scholar & Room */}
+                                    <div className="tt-entry-secondary">
+                                      {viewMode === 'class' && (
+                                        <>
+                                          <span title={entry.teacher_name ? formatTeacherWithDesignation(entry.teacher_name, entry.designation) : (entry.scholar_name ? `TA: ${entry.scholar_name}` : '')}>
+                                            {entry.teacher_name
+                                              ? getFirstName(entry.teacher_name)
+                                              : (entry.scholar_name ? `TA ${getFirstName(entry.scholar_name)}` : 'No Faculty')}
+                                            {entry.scholar_name && entry.teacher_name ? ` + TA` : ''}
+                                          </span>
+                                          <span style={{ opacity: 0.6, margin: '0 4px' }}>•</span>
+                                          <span>{entry.room_name || 'No Room'}</span>
+                                        </>
+                                      )}
+                                      {viewMode === 'teacher' && (
+                                        <>
+                                          <span>{entry.class_name} {entry.group_name ? `(${entry.group_name})` : ''}</span>
+                                          <span style={{ opacity: 0.6, margin: '0 4px' }}>•</span>
+                                          <span>{entry.room_name}</span>
+                                        </>
+                                      )}
+                                      {viewMode === 'scholar' && (
+                                        <>
+                                          <span>{entry.class_name} {entry.group_name ? `(${entry.group_name})` : ''}</span>
+                                          <span style={{ opacity: 0.6, margin: '0 4px' }}>•</span>
+                                          <span>{entry.room_name}</span>
+                                        </>
+                                      )}
+                                      {viewMode === 'room' && (
+                                        <>
+                                          <span>{entry.class_name} {entry.group_name ? `(${entry.group_name})` : ''}</span>
+                                          <span style={{ opacity: 0.6, margin: '0 4px' }}>•</span>
+                                          <span title={entry.teacher_name ? formatTeacherWithDesignation(entry.teacher_name, entry.designation) : (entry.scholar_name ? `TA: ${entry.scholar_name}` : '')}>
+                                            {entry.teacher_name
+                                              ? getFirstName(entry.teacher_name)
+                                              : (entry.scholar_name ? `TA ${getFirstName(entry.scholar_name)}` : '')}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Add Button */}
+                            {isAdmin && viewMode === 'class' && (
+                              <div
+                                className="tt-cell-add"
+                                onClick={(e) => { e.stopPropagation(); openAdd(day, period); }}
+                                title={`Add entry to ${day} P${period}`}
+                              >
+                                <Plus size={11} />
+                              </div>
+                            )}
+                          </td>
+                        );
+                      }
+
+                      const rowClasses = [
+                        hasMultipleLanes ? 'tt-lane-row' : '',
+                        isFirstLane ? 'tt-day-first-lane' : '',
+                        isLastLane ? 'tt-day-last-lane' : ''
+                      ].filter(Boolean).join(' ');
+
+                      return (
+                        <tr key={`${day}-lane-${laneIdx}`} className={rowClasses || undefined}>
+                          {isFirstLane && (
+                            <td className="tt-day-cell tt-day-bottom-border" rowSpan={activeLanes.length}>
+                              <div className="tt-period-label">
+                                <span className="period-time">{day}</span>
+                              </div>
+                            </td>
+                          )}
+                          {cells}
+                        </tr>
+                      );
+                    });
                   })}
                 </tbody>
               </table>
@@ -1160,10 +1511,13 @@ export default function TimetablePage() {
                       const newCompId = e.target.value;
                       // Find if an assignment exists for this component
                       const defaultAssgn = assignments.find(a => a.course_component_id === parseInt(newCompId));
+                      const nextTeacherId = (defaultAssgn && defaultAssgn.teacher_id != null)
+                        ? defaultAssgn.teacher_id.toString()
+                        : (defaultAssgn?.scholar_id ? '' : (teachers[0]?.id ? teachers[0].id.toString() : ''));
                       setForm(f => ({
                         ...f,
                         course_component_id: newCompId,
-                        teacher_id: defaultAssgn ? defaultAssgn.teacher_id.toString() : (teachers[0]?.id?.toString() || ''),
+                        teacher_id: nextTeacherId,
                         group_id: '',
                       }));
                       setError('');
@@ -1256,10 +1610,13 @@ export default function TimetablePage() {
                           const grpAssgn = assignments.find(
                             a => a.course_component_id === parseInt(form.course_component_id) && (newGid ? a.group_id === parseInt(newGid) : a.group_id == null)
                           );
+                          const nextGrpTeacherId = (grpAssgn && grpAssgn.teacher_id != null)
+                            ? grpAssgn.teacher_id.toString()
+                            : (grpAssgn?.scholar_id ? '' : f.teacher_id);
                           setForm(f => ({
                             ...f,
                             group_id: newGid,
-                            teacher_id: grpAssgn ? grpAssgn.teacher_id.toString() : f.teacher_id,
+                            teacher_id: nextGrpTeacherId,
                           }));
                           setError('');
                         }}
@@ -1314,6 +1671,15 @@ export default function TimetablePage() {
                       );
                     })}
                   </select>
+                  {assignedFaculty?.scholar_id && (
+                    <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--primary, #3b82f6)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span>🎓</span>
+                      <span>
+                        Assigned TA: <strong>{scholars.find(s => s.id === assignedFaculty.scholar_id)?.name || 'Research Scholar'}</strong>
+                        {scholars.find(s => s.id === assignedFaculty.scholar_id)?.designation ? ` (${scholars.find(s => s.id === assignedFaculty.scholar_id).designation})` : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Room Selection with Keyword Search */}

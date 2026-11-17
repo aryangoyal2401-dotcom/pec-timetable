@@ -190,8 +190,8 @@ router.post('/', async (req, res, next) => {
     }
 
     const dur = parseInt(duration_hours) || 1;
-    const tId = teacher_id ? parseInt(teacher_id) : null;
-    const sId = scholar_id ? parseInt(scholar_id) : null;
+    let tId = teacher_id ? parseInt(teacher_id) : null;
+    let sId = scholar_id ? parseInt(scholar_id) : null;
 
     const db = await getDb();
     const assignedFaculty = await db.get(
@@ -200,6 +200,13 @@ router.post('/', async (req, res, next) => {
          AND (group_id = ? OR (group_id IS NULL AND CAST(? AS INTEGER) IS NULL))`,
       [academic_term, class_id, course_component_id, group_id || null, group_id || null]
     );
+
+    if (!tId && assignedFaculty?.teacher_id) {
+      tId = Number(assignedFaculty.teacher_id);
+    }
+    if (!sId && assignedFaculty?.scholar_id) {
+      sId = Number(assignedFaculty.scholar_id);
+    }
 
     // If a specific assignment was configured and differs, check teacher
     if (assignedFaculty && assignedFaculty.teacher_id && tId && Number(assignedFaculty.teacher_id) !== Number(tId)) {
@@ -257,6 +264,19 @@ router.put('/:id', async (req, res, next) => {
       time_slot_id:        req.body.time_slot_id        !== undefined ? parseInt(req.body.time_slot_id) : existing.time_slot_id,
       duration_hours:      parseInt(req.body.duration_hours ?? existing.duration_hours) || 1,
     };
+
+    const assignedFaculty = await db.get(
+      `SELECT teacher_id, scholar_id FROM teacher_assignments
+       WHERE academic_term = ? AND class_id = ? AND course_component_id = ?
+         AND (group_id = ? OR (group_id IS NULL AND CAST(? AS INTEGER) IS NULL))`,
+      [entry.academic_term, entry.class_id, entry.course_component_id, entry.group_id || null, entry.group_id || null]
+    );
+    if (!entry.teacher_id && assignedFaculty?.teacher_id) {
+      entry.teacher_id = Number(assignedFaculty.teacher_id);
+    }
+    if (!entry.scholar_id && assignedFaculty?.scholar_id) {
+      entry.scholar_id = Number(assignedFaculty.scholar_id);
+    }
 
     const validation = await validateEntry(entry, parseInt(req.params.id));
     if (!validation.valid) {

@@ -16,12 +16,13 @@ async function seedDatabase() {
   await db.run(`INSERT INTO departments (name, short_name) VALUES (?, ?)`, ['Computer Science & Engineering', 'CSE']);
   const { id: deptId } = await db.get('SELECT id FROM departments WHERE short_name = ?', ['CSE']);
 
-  // ─── Time Slots (Mon–Sat, continuous 07:00–21:00) ─────────
+  // ─── Time Slots (Mon–Sat, continuous 08:00–17:00, Periods 1 to 9) ─────────
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const periods = Array.from({ length: 14 }, (_, index) => {
-    const hour = index + 7;
+  const periods = Array.from({ length: 9 }, (_, index) => {
+    const periodNum = index + 1; // P1 to P9
+    const hour = index + 8;
     return {
-      period: index + 1,
+      period: periodNum,
       start: `${String(hour).padStart(2, '0')}:00`,
       end: `${String(hour + 1).padStart(2, '0')}:00`,
     };

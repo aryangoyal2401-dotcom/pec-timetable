@@ -3,8 +3,8 @@ import { api } from '../services/api';
 import { Plus, Trash2, Edit2, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 const DAYS = ['Mon','Tue','Wed','Thu','Fri'];
-const PERIODS = [1,2,3,4,5,6,7,8];
-const PERIOD_TIMES = {1:'8–9',2:'9–10',3:'10–11',4:'11–12',5:'13–14',6:'14–15',7:'15–16',8:'16–17'};
+const PERIODS = [1,2,3,4,5,6,7,8,9];
+const PERIOD_TIMES = {1:'8–9',2:'9–10',3:'10–11',4:'11–12',5:'12–13',6:'13–14',7:'14–15',8:'15–16',9:'16–17'};
 const STATUS_CYCLE = { available: 'preferred', preferred: 'blocked', blocked: 'available' };
 
 export default function TeachersPage() {

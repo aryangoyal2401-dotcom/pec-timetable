@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS teacher_availability (
   id          SERIAL PRIMARY KEY,
   teacher_id  INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
   day         TEXT NOT NULL CHECK(day IN ('Mon','Tue','Wed','Thu','Fri','Sat')),
-  period      INTEGER NOT NULL CHECK(period BETWEEN 1 AND 14),
+  period      INTEGER NOT NULL CHECK(period BETWEEN 2 AND 10),
   status      TEXT NOT NULL CHECK(status IN ('available','preferred','blocked')),
   UNIQUE(teacher_id, day, period)
 );
@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS teacher_assignments (
 CREATE TABLE IF NOT EXISTS time_slots (
   id          SERIAL PRIMARY KEY,
   day         TEXT NOT NULL CHECK(day IN ('Mon','Tue','Wed','Thu','Fri','Sat')),
-  period      INTEGER NOT NULL CHECK(period BETWEEN 1 AND 14),
+  period      INTEGER NOT NULL CHECK(period BETWEEN 2 AND 10),
   start_time  TEXT NOT NULL,
   end_time    TEXT NOT NULL,
   UNIQUE(day, period)

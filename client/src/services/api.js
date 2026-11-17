@@ -1,5 +1,25 @@
 const BASE = (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/$/, '') : '') + '/api';
 
+async function parseResponse(res) {
+  let data = null;
+  const text = await res.text();
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { message: text };
+    }
+  } else {
+    data = {};
+  }
+
+  if (!res.ok) {
+    const errorMsg = data?.message || data?.error || res.statusText || 'Constraint violation — check conflicts.';
+    throw { status: res.status, message: errorMsg, ...data };
+  }
+  return data;
+}
+
 async function request(method, path, body) {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -7,9 +27,7 @@ async function request(method, path, body) {
     body: body ? JSON.stringify(body) : undefined,
     credentials: 'include',
   });
-  const data = await res.json();
-  if (!res.ok) throw { status: res.status, ...data };
-  return data;
+  return parseResponse(res);
 }
 
 // Override request to always include credentials (cookies)
@@ -20,9 +38,7 @@ async function authRequest(method, path, body) {
     body: body ? JSON.stringify(body) : undefined,
     credentials: 'include',
   });
-  const data = await res.json();
-  if (!res.ok) throw { status: res.status, ...data };
-  return data;
+  return parseResponse(res);
 }
 
 export const api = {
