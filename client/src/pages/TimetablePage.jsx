@@ -633,7 +633,7 @@ export default function TimetablePage() {
               onChange={e => setSelectedScholar(e.target.value)}
             >
               <option value="">Select Scholar</option>
-              {scholars.map(s => <option key={s.id} value={s.id}>{s.name} {s.roll_no ? `(${s.roll_no})` : ''}</option>)}
+              {scholars.map(s => <option key={s.id} value={s.id}>{s.name} {s.designation ? `(${s.designation})` : (s.roll_no ? `(${s.roll_no})` : '')}</option>)}
             </select>
           )}
 
@@ -730,10 +730,17 @@ export default function TimetablePage() {
                   {currentScholar.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{currentScholar.name}</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    {currentScholar.name}
+                    {currentScholar.designation && (
+                      <span style={{ color: 'var(--text-muted)', marginLeft: 6, fontSize: 11, fontWeight: 400 }}>
+                        {currentScholar.designation}
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                     {currentScholar.roll_no ? `${currentScholar.roll_no} • ` : ''}
-                    {currentScholar.department_name || 'Research Scholar / TA'}
+                    {currentScholar.department_name || currentScholar.designation || 'Research Scholar / TA'}
                   </div>
                 </div>
               </div>

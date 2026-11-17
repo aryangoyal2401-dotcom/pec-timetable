@@ -445,7 +445,14 @@ export default function DashboardPage() {
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>{s.name}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>
+                        {s.name}
+                        {s.designation && (
+                          <span style={{ color: 'var(--text-muted)', marginLeft: 6, fontSize: 10, fontWeight: 400 }}>
+                            ({s.designation})
+                          </span>
+                        )}
+                      </span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{hours}/{max}h</span>
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>

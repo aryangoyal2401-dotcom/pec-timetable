@@ -14,17 +14,26 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+const designations = [
+  'Ph.D. Scholar',
+  'M.Tech Scholar',
+  'Research Scholar',
+  'Teaching Assistant'
+];
+
 export default function ScholarsPage() {
   const [scholars, setScholars] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState('all');
+  const [selectedDesignation, setSelectedDesignation] = useState('all');
 
   // Modal
   const [modal, setModal] = useState(null); // 'add' | scholar object
   const [form, setForm] = useState({
     name: '',
+    designation: 'Ph.D. Scholar',
     roll_no: '',
     department_id: '',
     email: '',
@@ -55,6 +64,7 @@ export default function ScholarsPage() {
   const openAdd = () => {
     setForm({
       name: '',
+      designation: 'Ph.D. Scholar',
       roll_no: '',
       department_id: departments[0]?.id || '',
       email: '',
@@ -67,6 +77,7 @@ export default function ScholarsPage() {
   const openEdit = (s) => {
     setForm({
       name: s.name,
+      designation: s.designation || 'Ph.D. Scholar',
       roll_no: s.roll_no || '',
       department_id: s.department_id || '',
       email: s.email || '',
@@ -111,10 +122,12 @@ export default function ScholarsPage() {
   const filtered = scholars.filter(s => {
     const matchesSearch =
       s.name.toLowerCase().includes(search.toLowerCase()) ||
+      (s.designation && s.designation.toLowerCase().includes(search.toLowerCase())) ||
       (s.roll_no && s.roll_no.toLowerCase().includes(search.toLowerCase())) ||
       (s.email && s.email.toLowerCase().includes(search.toLowerCase()));
     const matchesDept = selectedDept === 'all' || String(s.department_id) === String(selectedDept);
-    return matchesSearch && matchesDept;
+    const matchesDesig = selectedDesignation === 'all' || s.designation === selectedDesignation;
+    return matchesSearch && matchesDept && matchesDesig;
   });
 
   const totalMaxHours = scholars.reduce((sum, s) => sum + (s.max_hours_week || 0), 0);
@@ -127,8 +140,8 @@ export default function ScholarsPage() {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h2>Research Scholars & TAs</h2>
-          <p>Manage PhD scholars and Teaching Assistants assigned to labs and tutorials under faculty supervision</p>
+          <h2>Research Scholars &amp; TAs</h2>
+          <p>Manage Ph.D. Scholars and M.Tech Teaching Assistants assigned to labs and tutorials under faculty supervision</p>
         </div>
         <div className="flex items-center gap-2">
           <button className="btn btn-primary" onClick={openAdd}>
@@ -173,18 +186,30 @@ export default function ScholarsPage() {
 
         {/* Filters */}
         <div className="card" style={{ padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-          <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 220 }}>
-            <div style={{ position: 'relative', width: '100%', maxWidth: 300 }}>
+          <div className="flex items-center gap-2" style={{ flex: 1, minWidth: 220, flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: 260 }}>
               <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
               <input
                 type="text"
                 className="form-input"
-                placeholder="Search by name, roll no, email..."
+                placeholder="Search by name, designation, roll no..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{ paddingLeft: 30, height: 32, fontSize: 12 }}
               />
             </div>
+
+            <select
+              className="form-select"
+              value={selectedDesignation}
+              onChange={e => setSelectedDesignation(e.target.value)}
+              style={{ width: 'auto', height: 32, fontSize: 12 }}
+            >
+              <option value="all">All Designations</option>
+              {designations.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
 
             {departments.length > 0 && (
               <select
@@ -217,6 +242,7 @@ export default function ScholarsPage() {
               <thead>
                 <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
                   <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12 }}>Scholar Name</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12 }}>Designation</th>
                   <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12 }}>Roll No / ID</th>
                   <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12 }}>Department</th>
                   <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 12 }}>Email</th>
@@ -228,13 +254,15 @@ export default function ScholarsPage() {
                 {filtered.map(s => {
                   const pct = Math.min(100, Math.round(((s.scheduled_hours || 0) / (s.max_hours_week || 12)) * 100));
                   const isHigh = pct >= 90;
+                  const isMtech = s.designation && s.designation.includes('M.Tech');
                   return (
                     <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '12px 14px', fontWeight: 600, fontSize: 13 }}>
                         <div className="flex items-center gap-2">
                           <div style={{
                             width: 28, height: 28, borderRadius: '50%',
-                            background: 'rgba(99, 102, 241, 0.15)', color: 'var(--primary)',
+                            background: isMtech ? 'rgba(14, 165, 233, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                            color: isMtech ? 'var(--sky)' : 'var(--primary)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             fontSize: 12, fontWeight: 700
                           }}>
@@ -249,6 +277,11 @@ export default function ScholarsPage() {
                             )}
                           </div>
                         </div>
+                      </td>
+                      <td style={{ padding: '12px 14px', fontSize: 12 }}>
+                        <span className={`badge ${isMtech ? 'badge-sky' : 'badge-indigo'}`} style={{ fontSize: 11, fontWeight: 600 }}>
+                          {s.designation || '—'}
+                        </span>
                       </td>
                       <td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                         {s.roll_no || '—'}
@@ -277,7 +310,7 @@ export default function ScholarsPage() {
                           <div style={{ height: 5, borderRadius: 3, background: 'var(--bg-elevated)', overflow: 'hidden' }}>
                             <div style={{
                               width: `${pct}%`, height: '100%',
-                              background: isHigh ? 'var(--amber)' : 'var(--primary)',
+                              background: isHigh ? 'var(--amber)' : isMtech ? 'var(--sky)' : 'var(--primary)',
                               borderRadius: 3, transition: 'width 0.3s'
                             }} />
                           </div>
@@ -327,7 +360,7 @@ export default function ScholarsPage() {
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="e.g. Dr. Jane Scholar / Rahul Verma"
+                    placeholder="e.g. Rahul Verma / Abishek Philip"
                     value={form.name}
                     onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                     autoFocus
@@ -336,11 +369,24 @@ export default function ScholarsPage() {
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label">Designation</label>
+                  <select
+                    className="form-select"
+                    value={form.designation}
+                    onChange={e => setForm(f => ({ ...f, designation: e.target.value }))}
+                  >
+                    {designations.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
                   <label className="form-label">Roll Number / Scholar ID</label>
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="e.g. 23PHDCSE01"
+                    placeholder="e.g. 23PHDCSE01 / 24MTCSE12"
                     value={form.roll_no}
                     onChange={e => setForm(f => ({ ...f, roll_no: e.target.value }))}
                   />
@@ -365,7 +411,7 @@ export default function ScholarsPage() {
                   <input
                     type="email"
                     className="form-input"
-                    placeholder="scholar@university.edu"
+                    placeholder="scholar@pec.edu.in"
                     value={form.email}
                     onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   />
@@ -382,7 +428,7 @@ export default function ScholarsPage() {
                     onChange={e => setForm(f => ({ ...f, max_hours_week: e.target.value }))}
                   />
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Standard PhD scholar TA duty is usually 8–12 hours per week.
+                    Standard scholar TA duty is usually 8–12 hours per week.
                   </div>
                 </div>
               </div>

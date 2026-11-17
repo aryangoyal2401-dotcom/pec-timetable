@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db/database');
 
-// GET all scholars (optionally filtered by department_id)
+// GET all scholars (optionally filtered by department_id or designation)
 router.get('/', async (req, res) => {
   const db = await getDb();
   let query = `
@@ -13,10 +13,21 @@ router.get('/', async (req, res) => {
     LEFT JOIN departments d ON s.department_id = d.id
   `;
   const params = [];
+  const conditions = [];
+
   if (req.query.department_id) {
-    query += ' WHERE s.department_id = ?';
+    conditions.push('s.department_id = ?');
     params.push(req.query.department_id);
   }
+  if (req.query.designation) {
+    conditions.push('s.designation = ?');
+    params.push(req.query.designation);
+  }
+
+  if (conditions.length > 0) {
+    query += ' WHERE ' + conditions.join(' AND ');
+  }
+
   query += ' ORDER BY s.name';
   res.json(await db.all(query, params));
 });
@@ -38,13 +49,20 @@ router.get('/:id', async (req, res) => {
 // POST create scholar
 router.post('/', async (req, res) => {
   const db = await getDb();
-  const { name, roll_no, department_id, email, max_hours_week = 12 } = req.body;
+  const { name, designation, roll_no, department_id, email, max_hours_week = 12 } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
 
   try {
     const r = await db.run(
-      'INSERT INTO scholars (name, roll_no, department_id, email, max_hours_week) VALUES (?, ?, ?, ?, ?)',
-      [name.trim(), roll_no ? roll_no.trim() : null, department_id ? parseInt(department_id) : null, email ? email.trim() : null, parseInt(max_hours_week) || 12]
+      'INSERT INTO scholars (name, designation, roll_no, department_id, email, max_hours_week) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        name.trim(),
+        designation ? designation.trim() : null,
+        roll_no ? roll_no.trim() : null,
+        department_id ? parseInt(department_id) : null,
+        email ? email.trim() : null,
+        parseInt(max_hours_week) || 12
+      ]
     );
     const created = await db.get(`
       SELECT s.*, d.name as department_name
@@ -67,13 +85,14 @@ router.put('/:id', async (req, res) => {
   const scholar = await db.get('SELECT * FROM scholars WHERE id = ?', req.params.id);
   if (!scholar) return res.status(404).json({ error: 'Scholar not found' });
 
-  const { name, roll_no, department_id, email, max_hours_week } = req.body;
+  const { name, designation, roll_no, department_id, email, max_hours_week } = req.body;
 
   try {
     await db.run(
-      'UPDATE scholars SET name=?, roll_no=?, department_id=?, email=?, max_hours_week=? WHERE id=?',
+      'UPDATE scholars SET name=?, designation=?, roll_no=?, department_id=?, email=?, max_hours_week=? WHERE id=?',
       [
         name !== undefined ? name.trim() : scholar.name,
+        designation !== undefined ? (designation ? designation.trim() : null) : scholar.designation,
         roll_no !== undefined ? (roll_no ? roll_no.trim() : null) : scholar.roll_no,
         department_id !== undefined ? (department_id ? parseInt(department_id) : null) : scholar.department_id,
         email !== undefined ? (email ? email.trim() : null) : scholar.email,

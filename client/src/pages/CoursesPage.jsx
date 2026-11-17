@@ -743,7 +743,7 @@ export default function CoursesPage() {
                                                 >
                                                   <option value="">None (No Scholar)</option>
                                                   {scholars.map(s => (
-                                                    <option key={s.id} value={s.id}>{s.name} {s.roll_no ? `(${s.roll_no})` : ''}</option>
+                                                    <option key={s.id} value={s.id}>{s.name} {s.designation ? `(${s.designation})` : (s.roll_no ? `(${s.roll_no})` : '')}</option>
                                                   ))}
                                                 </select>
                                               </div>
@@ -835,7 +835,7 @@ export default function CoursesPage() {
                                                 >
                                                   <option value="">None (No Scholar)</option>
                                                   {scholars.map(s => (
-                                                    <option key={s.id} value={s.id}>{s.name} {s.roll_no ? `(${s.roll_no})` : ''}</option>
+                                                    <option key={s.id} value={s.id}>{s.name} {s.designation ? `(${s.designation})` : (s.roll_no ? `(${s.roll_no})` : '')}</option>
                                                   ))}
                                                 </select>
                                               </div>

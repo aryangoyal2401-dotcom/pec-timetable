@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS student_groups (
 CREATE TABLE IF NOT EXISTS scholars (
   id              SERIAL PRIMARY KEY,
   name            TEXT NOT NULL,
+  designation     TEXT,
   roll_no         TEXT UNIQUE,
   department_id   INTEGER REFERENCES departments(id) ON DELETE SET NULL,
   email           TEXT,

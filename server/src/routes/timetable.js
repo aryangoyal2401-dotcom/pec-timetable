@@ -9,7 +9,7 @@ const ENTRY_QUERY = `
     c.name as class_name,
     sg.name as group_name, sg.group_type, sg.parent_id as group_parent_id,
     t.name as teacher_name, t.designation,
-    s.name as scholar_name, s.roll_no as scholar_roll_no,
+    s.name as scholar_name, s.designation as scholar_designation, s.roll_no as scholar_roll_no,
     co.id as course_id, co.name as course_name, co.code as course_code, co.short_name as course_short_name,
     cc.type as component_type, cc.hours_per_week, cc.duration_hours as component_duration,
     r.name as room_name, r.type as room_type, r.capacity,
@@ -61,7 +61,7 @@ router.get('/stats/summary', async (req, res) => {
   `, [term]);
 
   const scholarWorkloads = await db.all(`
-    SELECT s.id, s.name, s.max_hours_week,
+    SELECT s.id, s.name, s.designation, s.max_hours_week,
       COALESCE(SUM(CASE WHEN te.academic_term = ? THEN te.duration_hours ELSE 0 END), 0) as scheduled_hours
     FROM scholars s LEFT JOIN timetable_entries te ON s.id = te.scholar_id
     GROUP BY s.id ORDER BY scheduled_hours DESC
@@ -93,7 +93,7 @@ router.get('/status/schedule', async (req, res) => {
     SELECT ta.id, ta.academic_term, ta.class_id, ta.teacher_id, ta.scholar_id, ta.course_component_id, ta.group_id,
       cl.name as class_name,
       t.name as teacher_name,
-      s.name as scholar_name,
+      s.name as scholar_name, s.designation as scholar_designation,
       cc.type as component_type, cc.hours_per_week, cc.duration_hours as session_duration,
       co.name as course_name, co.code as course_code, co.short_name as course_short_name,
       sg.name as group_name, sg.group_type, sg.parent_id as group_parent_id,

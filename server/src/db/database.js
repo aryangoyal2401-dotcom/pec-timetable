@@ -84,6 +84,11 @@ async function initDb() {
 
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
   await pool.query(schema);
+  try {
+    await pool.query('ALTER TABLE scholars ADD COLUMN IF NOT EXISTS designation TEXT');
+  } catch (colErr) {
+    // Column already exists or handled by schema
+  }
   console.log('✅ Database schema initialized in PostgreSQL');
   return db;
 }
